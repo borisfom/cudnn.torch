@@ -301,15 +301,24 @@ function SpatialConvolution:accGradParameters(input, gradOutput, scale)
              self.biasDesc[0], self.gradBias:data())
    for g=0,self.groups-1 do
       -- gradWeight
+      errcheck('cudnnConvolutionBackwardFilter', cudnn.getHandle(),
+               self.scaleT:data(),
+               self.iDesc[0], input:data() + g*self.input_offset,
+               self.oDesc[0], gradOutput:data() + g*self.output_offset,
+               self.convDesc[0],one:data(),
+               self.weightDesc[0], self.gradWeight:data() + g*self.weight_offset);
+
+      --[[
       errcheck('cudnnConvolutionBackwardFilter_v3', cudnn.getHandle(),
                self.scaleT:data(),
                self.iDesc[0], input:data() + g*self.input_offset,
                self.oDesc[0], gradOutput:data() + g*self.output_offset,
                self.convDesc[0],
-	       self.bwdFilterAlgType[0],
-	       self.extraBuffer:data(), self.extraBufferSizeInBytes,
+               self.bwdFilterAlgType[0],
+               self.extraBuffer:data(), self.extraBufferSizeInBytes,
                one:data(),
                self.weightDesc[0], self.gradWeight:data() + g*self.weight_offset);
+      ]]--
    end
 end
 

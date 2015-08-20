@@ -262,6 +262,18 @@ cudnnStatus_t cudnnConvolutionBackwardFilter_v3(
 		   void                               *gradData
 						);
 
+cudnnStatus_t cudnnConvolutionBackwardFilter( cudnnHandle_t            handle,
+                      const void                         *alpha,
+                      const cudnnTensorDescriptor_t       srcDesc,
+                      const void                         *srcData,
+                      const cudnnTensorDescriptor_t       diffDesc,
+                      const void                         *diffData,
+                      const cudnnConvolutionDescriptor_t  convDesc,
+                      const void                         *beta,
+                      const cudnnFilterDescriptor_t       gradDesc,
+                      void                               *gradData
+                                      );
+
 typedef enum
 {
     CUDNN_CONVOLUTION_BWD_DATA_NO_WORKSPACE        = 0,
