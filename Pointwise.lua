@@ -1,5 +1,7 @@
 local Pointwise, parent = torch.class('cudnn._Pointwise','nn.Module')
+
 local errcheck = cudnn.errcheck
+local ffi = require 'ffi'
 
 function Pointwise:__init(inplace)
    parent.__init(self)
@@ -25,13 +27,26 @@ local zero = torch.FloatTensor({0});
 
 function Pointwise:updateOutput(input)
    self:createIODescriptors(input)
+   local activDesc = ffi.new('struct cudnnActivationStruct*[1]')
+   errcheck('cudnnCreateActivationDescriptor', activDesc)
+   errcheck('cudnnSetActivationDescriptor', activDesc[0], self.mode, 'CUDNN_PROPAGATE_NAN', 0.0);
    if self.inplace then self.output:set(input) end
    errcheck('cudnnActivationForward',
+<<<<<<< HEAD
             cudnn.getHandle(), self.mode,
+=======
+            cudnn.getHandle(), activDesc[0],
+>>>>>>> Got rid of _v3 functions
             one:data(),
             self.iDesc[0], input:data(),
             zero:data(),
             self.iDesc[0], self.output:data());
+
+   local function destroyActivationDesc(d)
+       errcheck('cudnnDestroyActivationDescriptor', d[0]);
+   end
+   ffi.gc(activDesc, destroyActivationDesc)
+
    return self.output
 end
 
@@ -42,15 +57,25 @@ function Pointwise:updateGradInput(input, gradOutput)
       gradOutput = self._gradOutput
    end
    self:createIODescriptors(input)
+   local activDesc = ffi.new('struct cudnnActivationStruct*[1]')
+   errcheck('cudnnCreateActivationDescriptor', activDesc)
+   errcheck('cudnnSetActivationDescriptor', activDesc[0], self.mode, 'CUDNN_PROPAGATE_NAN', 0.0);
+
    if self.inplace then self.output:set(input); self.gradInput:set(gradOutput) end
    errcheck('cudnnActivationBackward',
-            cudnn.getHandle(), self.mode,
+            cudnn.getHandle(), activDesc[0],
             one:data(),
             self.iDesc[0], self.output:data(),
             self.iDesc[0], gradOutput:data(),
             self.iDesc[0], input:data(),
             zero:data(),
             self.iDesc[0], self.gradInput:data());
+
+   local function destroyActivationDesc(d)
+       errcheck('cudnnDestroyActivationDescriptor', d[0]);
+   end
+   ffi.gc(activDesc, destroyActivationDesc)
+
    return self.gradInput
 end
 

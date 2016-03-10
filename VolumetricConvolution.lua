@@ -15,7 +15,7 @@ function VolumetricConvolution:resetWeightDescriptors()
    local desc = torch.IntTensor({self.nOutputPlane, self.nInputPlane,
                              self.kT, self.kH, self.kW})
    errcheck('cudnnSetFilterNdDescriptor', self.weightDesc[0],
-            'CUDNN_DATA_FLOAT', 5,
+            'CUDNN_DATA_FLOAT', 'CUDNN_TENSOR_NCHW', 5,
             desc:data());
    local function destroyWDesc(d)
       errcheck('cudnnDestroyFilterDescriptor', d[0]);
