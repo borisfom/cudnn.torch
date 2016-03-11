@@ -16,7 +16,7 @@ function TemporalConvolution:__init(inputFrameSize, outputFrameSize,
     local nOutputPlane = outputFrameSize
     self.inputFrameSize = inputFrameSize
     self.outputFrameSize = outputFramesize
-    impl.init(self, parent, nInputPlane, nOutputPlane, kW, kH, 1, dH,0,padH)
+    impl.init(self, cudnn.SpatialConvolution, nInputPlane, nOutputPlane, kW, kH, 1, dH,0,padH)
     self.weight = self.weight:view(nOutputPlane,inputFrameSize*kH)
     self.gradWeight = self.gradWeight:view(outputFrameSize, inputFrameSize*kH)
 --self.dW and self.kW now have different meaning than in nn.TemporalConvolution, because
