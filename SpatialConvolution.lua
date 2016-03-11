@@ -36,13 +36,14 @@ function SpatialConvolution:createIODescriptors(input)
     return impl.createIODescriptors(self, input)
 end
 
-
 function SpatialConvolution:updateOutput(input)
+   if not self.weightDesc then self:resetWeightDescriptors() end
    input = impl.makeContiguous(self, input)
    return impl.updateOutput(self, input)
 end
 
 function SpatialConvolution:updateGradInput(input, gradOutput)
+    if not self.gradInput then return end
     input, gradOutput = impl.makeContiguous(self, input, gradOutput)
     return impl.updateGradInput(self, input, gradOutput)
 end
