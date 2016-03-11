@@ -99,6 +99,7 @@ function cudnn.getSharedWorkspace()
     return sharedBuffer[device][stream]
 end
 
+require('cudnn.ConvolutionImpl')
 require('cudnn.SpatialConvolution')
 require('cudnn.VolumetricConvolution')
 require('cudnn.Pooling')
@@ -123,6 +124,5 @@ require('cudnn.SpatialCrossEntropyCriterion')
 require('cudnn.TemporalConvolution')
 require('cudnn.functional')
 require('cudnn.convert')
-
 
 return cudnn

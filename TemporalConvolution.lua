@@ -1,7 +1,6 @@
 local TemporalConvolution, parent =
     torch.class('cudnn.TemporalConvolution', 'nn.TemporalConvolution')
-
-local impl = require 'cudnn.ConvolutionImpl'
+local impl = cudnn.ConvolutionImpl()
 
 --use cudnn to perform temporal convolutions
 --note: if padH parameter is not passed, no padding will be performed, as in parent TemporalConvolution

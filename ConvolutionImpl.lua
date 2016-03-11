@@ -1,11 +1,14 @@
-local ConvolutionImpl = {}
+local ConvolutionImpl = torch.class('cudnn.ConvolutionImpl')
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
 local autotunerCache = {}
-autotunerCache[1] = {} -- forward
-autotunerCache[2] = {} -- backwardFilter
-autotunerCache[3] = {} -- backwardData
+
+function ConvolutionImpl:__init()
+   autotunerCache[1] = {} -- forward
+   autotunerCache[2] = {} -- backwardFilter
+   autotunerCache[3] = {} -- backwardData
+end
 
 function ConvolutionImpl:init(parent, nInputPlane, nOutputPlane,
                             kW, kH, dW, dH, padW, padH, groups)
@@ -470,8 +473,3 @@ function ConvolutionImpl:clearState()
    ConvolutionImpl.clearDesc(self)
    return nn.Module.clearState(self)
 end
-
-table.unpack = table.unpack or unpack
-
-cudnn.ConvolutionImpl = ConvolutionImpl
-return ConvolutionImpl
