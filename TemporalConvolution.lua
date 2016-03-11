@@ -115,7 +115,7 @@ end
 
 function TemporalConvolution:clearDesc()
   self.buffer = nil
-  self._ouptut = nil
+  self._output = nil
   self.oSize = nil
 end
 
