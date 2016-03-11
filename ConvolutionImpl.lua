@@ -1,6 +1,11 @@
-local ConvolutionImpl = torch.class("cudnn.ConvolutionImpl")
+local ConvolutionImpl = {}
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
+
+local autotunerCache = {}
+autotunerCache[1] = {} -- forward
+autotunerCache[2] = {} -- backwardFilter
+autotunerCache[3] = {} -- backwardData
 
 function ConvolutionImpl:init(parent, nInputPlane, nOutputPlane,
                             kW, kH, dW, dH, padW, padH, groups)
@@ -17,7 +22,6 @@ function ConvolutionImpl:init(parent, nInputPlane, nOutputPlane,
            'nOutputPlane should be divisible by nGroups')
     self.weight = torch.Tensor(nOutputPlane, nInputPlane/self.groups, kH, kW)
     self.gradWeight = torch.Tensor(nOutputPlane, nInputPlane/self.groups, kH, kW)
-    self.iSize = torch.LongStorage(4):fill(0)
     self:reset()
     -- should nil for serialization, the reset will still work
     self.reset = nil
@@ -54,8 +58,7 @@ end
 function ConvolutionImpl:fastest(mode)
     if mode == nil then mode = true end
     self.fastest_mode = mode
-    self.iSize = self.iSize or torch.LongStorage(4)
-    self.iSize:fill(0)
+    self.iSize = self.iSize or torch.LongStorage(4):fill(0)
     return self
 end
 
@@ -69,8 +72,7 @@ function ConvolutionImpl:setMode(fmode, bdmode, bwmode)
     if bwmode ~= nil then
         self.bwmode = bwmode
     end
-    self.iSize = self.iSize or torch.LongStorage(4)
-    self.iSize:fill(0)
+    self.iSize = self.iSize or torch.LongStorage(4):fill(0)
     return self
 end
 
@@ -141,7 +143,67 @@ function ConvolutionImpl:createIODescriptors(input)
         self.oDesc = cudnn.toDescriptor(self.output[output_slice])
         self.oDescForBias = cudnn.toDescriptor(self.output)
 
-///////
+        -----------------------------------------------------------------------
+        local function shape(x)
+            local sz = x:size()
+            local str = ''
+            for i=1,sz:size() do
+                str = str .. sz[i] .. 'x'
+            end
+            if #str > 0 then
+                str = str:sub(1, #str-1)
+            end
+            return str
+        end
+        local autotunerHash = shape(self.weight) .. ';'
+            .. shape(input[input_slice]) .. ';'
+            .. shape(self.output[output_slice])
+
+        local maxBufSize = 0
+
+        -- create forwardAlgorithm descriptors
+        local algType = ffi.new("cudnnConvolutionFwdAlgo_t[?]", 1)
+        local algSearchMode = 'CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT'
+        local algWorkspaceLimit = self.workspace_limit
+            or (self.nInputPlane * self.kH * self.kW * 4) -- 4 = sizeof int/float.
+
+        if self.fastest_mode or cudnn.fastest == true then
+            algSearchMode = 'CUDNN_CONVOLUTION_FWD_PREFER_FASTEST'
+        end
+
+        if cudnn.benchmark then -- the manual auto-tuner is run
+            if autotunerCache[1][autotunerHash] then
+                algType[0] = autotunerCache[1][autotunerHash]
+                if cudnn.verbose then
+                    print('Using cached benchmark for: ', autotunerHash)
+                end
+            else
+                local perfResults = ffi.new("cudnnConvolutionFwdAlgoPerf_t[?]", 1)
+                local intt = torch.IntTensor(1);
+                errcheck('cudnnFindConvolutionForwardAlgorithm',
+                         cudnn.getHandle(),
+                         self.iDesc[0], self.weightDesc[0],
+                         self.convDesc[0], self.oDesc[0],
+                         1, intt:data(), perfResults)
+                algType[0] = perfResults[0].algo
+                autotunerCache[1][autotunerHash] = perfResults[0].algo
+                if cudnn.verbose then
+                    print(string.format(
+                              "Autotuning        Forward: Time: %3.5f Memory: %8d Algorithm: %d"
+                                  .. " Weight: %15s Input: %15s Output: %15s",
+                              perfResults[0].time, tonumber(perfResults[0].memory),
+                              tonumber(perfResults[0].algo),
+                              shape(self.weight), shape(input[input_slice]),
+                              shape(self.output[output_slice])))
+                end
+            end
+        else
+            errcheck('cudnnGetConvolutionForwardAlgorithm',
+                     cudnn.getHandle(),
+                     self.iDesc[0], self.weightDesc[0],
+                     self.convDesc[0], self.oDesc[0],
+                     algSearchMode, algWorkspaceLimit, algType)
+        end
 
         algType[0] = self.fmode or algType[0]
         self.fwdAlgType = algType
@@ -284,17 +346,22 @@ function ConvolutionImpl:makeContiguous(input, gradOutput)
    if not input:isContiguous() then
       self._input = self._input or input.new()
       self._input:typeAs(input):resizeAs(input):copy(input)
+      input = self._input
    end
    if gradOutput and not gradOutput:isContiguous() then
       self._gradOutput = self._gradOutput or gradOutput.new()
       self._gradOutput:typeAs(gradOutput):resizeAs(gradOutput):copy(gradOutput)
+      gradOutput = self._gradOutput
    end
+   return input, gradOutput
 end
 
+
 function ConvolutionImpl:updateOutput(input)
+    -- callers of this impl methods should make sure it's contiguouos
+    assert(input:isContiguous(), 'input has to be contiguous')
     if not self.weightDesc then self:resetWeightDescriptors() end
     self:createIODescriptors(input)
-
     for g = 0, self.groups - 1 do
         errcheck('cudnnConvolutionForward', cudnn.getHandle(),
                  one:data(),
@@ -319,6 +386,8 @@ end
 function ConvolutionImpl:updateGradInput(input, gradOutput)
     if not self.gradInput then return end
     assert(gradOutput:dim() == 3 or gradOutput:dim() == 4, 'gradOutput has to be 3D or 4D');
+    -- callers of this impl methods should make sure it's contiguouos
+    assert(gradOutput:isContiguous(), 'gradOutput has to be contiguous')
     if not self.weightDesc then self:resetWeightDescriptors() end
     self:createIODescriptors(input)
 
@@ -342,8 +411,6 @@ function ConvolutionImpl:accGradParameters(input, gradOutput, scale)
     self.scaleT = self.scaleT:float()
     scale = scale or 1.0
     self.scaleT[1] = scale
-
-    input, gradOutput = makeContiguous(self, input, gradOutput)
 
     assert(gradOutput:dim() == 3 or gradOutput:dim() == 4, 'gradOutput has to be 3D or 4D');
     if not self.weightDesc then self:resetWeightDescriptors() end
@@ -388,8 +455,8 @@ function ConvolutionImpl:clearDesc()
     self.scaleT = nil
 end
 
-function ConvolutionImpl:write(self,f)
-    self:clearDesc()
+function ConvolutionImpl:write(f)
+    ConvolutionImpl.clearDesc(self)
     local var = {}
     for k,v in pairs(self) do
         var[k] = v
@@ -398,8 +465,10 @@ function ConvolutionImpl:write(self,f)
 end
 
 function ConvolutionImpl:clearState()
-   self:clearDesc()
+   ConvolutionImpl.clearDesc(self)
    return nn.Module.clearState(self)
 end
+
+table.unpack = table.unpack or unpack
 
 return ConvolutionImpl
