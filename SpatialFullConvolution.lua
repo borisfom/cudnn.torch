@@ -1,7 +1,7 @@
 local SpatialFullConvolution, parent =
     torch.class('cudnn.SpatialFullConvolution', 'nn.SpatialFullConvolution')
 local ffi = require 'ffi'
-local impl = require 'ConvolutionImpl'
+local impl = require 'cudnn.ConvolutionImpl'
 
 local errcheck = cudnn.errcheck
 

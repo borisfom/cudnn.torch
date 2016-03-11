@@ -473,4 +473,5 @@ end
 
 table.unpack = table.unpack or unpack
 
+cudnn.ConvolutionImpl = ConvolutionImpl
 return ConvolutionImpl

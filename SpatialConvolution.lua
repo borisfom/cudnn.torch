@@ -2,7 +2,7 @@ local SpatialConvolution, parent =
     torch.class('cudnn.SpatialConvolution', 'nn.SpatialConvolution')
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
-local impl = require 'ConvolutionImpl'
+local impl = require 'cudnn.ConvolutionImpl'
 
 function SpatialConvolution:__init(nInputPlane, nOutputPlane,
                             kW, kH, dW, dH, padW, padH, groups)
