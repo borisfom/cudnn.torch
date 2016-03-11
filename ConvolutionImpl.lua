@@ -26,6 +26,7 @@ function ConvolutionImpl:init(parent, nInputPlane, nOutputPlane,
     -- should nil for serialization, the reset will still work
     self.reset = nil
     self.iSize = torch.LongStorage(4):fill(0)
+    return self
 end
 
 -- if you change the configuration of the module manually, call this
@@ -54,6 +55,7 @@ function ConvolutionImpl:resetWeightDescriptors()
     if self.bias then
         self.biasDesc = cudnn.toDescriptor(self.bias:view(1, self.nOutputPlane,1,1))
     end
+    return self
 end
 
 function ConvolutionImpl:fastest(mode)
@@ -335,6 +337,7 @@ function ConvolutionImpl:createIODescriptors(input)
                                            self.output:size(4))
         end
     end
+    return self
 end
 
 local one = torch.FloatTensor({1});
