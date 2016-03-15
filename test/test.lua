@@ -368,6 +368,7 @@ end
 
 
 function cudnntest.VolumetricConvolution_forward_single()
+
    local from = math.random(1,16)
    local to = math.random(1,16)
    local ki = math.random(3,5)
@@ -382,11 +383,19 @@ function cudnntest.VolumetricConvolution_forward_single()
    local ini = (outi-1)*si+ki
    local inj = (outj-1)*sj+kj
    local ink = (outk-1)*sk+kk
+   local padT = math.random(0,2)
+   local padW = math.random(0,2)
+   local padH = math.random(0,2)
+
    local input = torch.randn(from,ink,inj,ini):cuda()
-   local sconv = nn.VolumetricConvolution(from,to,kk,ki,kj,sk,si,sj):float()
-   local gconv = cudnn.VolumetricConvolution(from,to,kk,ki,kj,sk,si,sj):cuda()
+   print "nn constructor:"
+   local sconv = nn.VolumetricConvolution(from,to,kk,ki,kj,sk,si,sj,padT, padW, padH):float()
+   print "cudnn constructor:"
+   local gconv = cudnn.VolumetricConvolution(from,to,kk,ki,kj,sk,si,sj,padT, padW, padH):cuda()
+
    gconv.weight:copy(sconv.weight)
    gconv.bias:copy(sconv.bias)
+
    local function test(sconv, gconv)
      local groundtruth = sconv:forward(input:float())
      cutorch.synchronize()
@@ -1313,9 +1322,11 @@ math.randomseed(os.time())
 mytester = torch.Tester()
 mytester:add(cudnntest)
 
-if torch.random(1,2) == 1 then
-   cudnn.benchmark = true -- run manual auto-tuner
-end
+-- if torch.random(1,2) == 1 then
+   cudnn.benchmark = false -- run manual auto-tuner
+   cudnn.fastest = true
+   cudnn.verbose = true
+-- #end
 
 
 for i=1,cutorch.getDeviceCount() do

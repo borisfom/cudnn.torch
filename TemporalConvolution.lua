@@ -24,14 +24,7 @@ function TemporalConvolution:__init(inputFrameSize, outputFrameSize,
 end
 
 function TemporalConvolution:createIODescriptors(input)
-    local sizeChanged = false
-    if not self.iDesc or not self.oDesc or
-        input:size(1) ~= self.iSize[1] or input:size(2) ~= self.iSize[2]
-    or input:size(3) ~= self.iSize[3] or input:size(4) ~= self.iSize[4] then
-	   sizeChanged = true
-    end
-    impl.createIODescriptors(self,input)
-    if sizeChanged then
+    if impl.createIODescriptors(self,input) then
        self.oSize = self.output:size()
     end
 end
