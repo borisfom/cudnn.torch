@@ -10,22 +10,27 @@ end
 
 -- if you change the configuration of the module manually, call this
 function VolumetricConvolution:resetWeightDescriptors()
+   self.nDim = 5
    impl.resetWeightDescriptors(self)
 end
 
 function VolumetricConvolution:fastest(mode)
+   self.nDim = 5
    return impl.fastest(self, mode);
 end
 
 function VolumetricConvolution:setMode(fmode, bdmode, bwmode)
-   return impl.setmode(self, fmode, bdmode, bwmode)
+   self.nDim = 5
+   return impl.setMode(self, fmode, bdmode, bwmode)
 end
 
 function VolumetricConvolution:resetMode()
-   return impl.resetMode()
+   self.nDim = 5
+   return impl.resetMode(self)
 end
 
 function VolumetricConvolution:createIODescriptors(input)
+   self.nDim = 5
    if input:dim() == 4 then
       input = input:view(1, input:size(1), input:size(2),
                          input:size(3), input:size(4))
@@ -35,17 +40,20 @@ function VolumetricConvolution:createIODescriptors(input)
 end
 
 function VolumetricConvolution:updateOutput(input)
+   self.nDim = 5
    input = impl.makeContiguous(self, input)
    return impl.updateOutput(self, input)
 end
 
 function VolumetricConvolution:updateGradInput(input, gradOutput)
+   self.nDim = 5
    if not self.gradInput then return end
    input, gradOutput = impl.makeContiguous(self, input, gradOutput)
    return impl.updateGradInput(self, input, gradOutput)
 end
 
 function VolumetricConvolution:accGradParameters(input, gradOutput, scale)
+   self.nDim = 5
    input, gradOutput = impl.makeContiguous(self, input, gradOutput)
    return impl.accGradParameters(self,input, gradOutput, scale)
 end

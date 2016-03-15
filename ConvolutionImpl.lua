@@ -74,16 +74,15 @@ function ConvolutionImpl:resetWeightDescriptors()
     errcheck('cudnnCreateFilterDescriptor', self.weightDesc)
     local desc = nil
     local mydim =  self.nDim or 4
+    self.groups = self.groups or 1
 
     if mydim == 4 then
        -- for compatibility
-       self.groups = self.groups or 1
        desc = torch.IntTensor({self.nOutputPlane/self.groups,
                                self.nInputPlane/self.groups,
                                self.kH, self.kW})
     elseif mydim == 5 then
-       -- no groups here
-       desc = torch.IntTensor({self.nOutputPlane, self.nInputPlane,
+       desc = torch.IntTensor({self.nOutputPlane/self.groups, self.nInputPlane/self.groups,
                                self.kT, self.kH, self.kW})
     end
     errcheck('cudnnSetFilterNdDescriptor', self.weightDesc[0],
@@ -95,9 +94,9 @@ function ConvolutionImpl:resetWeightDescriptors()
     ffi.gc(self.weightDesc, destroyWDesc)
 
     -- create descriptor for bias
-    if self.bias then
+--    if self.bias then
         self.biasDesc = cudnn.toDescriptor(self.bias:view(1, self.nOutputPlane,1,1))
-    end
+--    end
     return self
 end
 
@@ -143,9 +142,9 @@ local function arraysEqual(a1, a2)
 end
 
 -- returns true if size changed
-function ConvolutionImpl:createIODescriptors(input)
+function ConvolutionImpl:createIODescriptors(input, mydim)
     local batch = true
-    local mydim = self.nDim or 4
+    mydim = self.nDim or 4
 
     if mydim == 4 then
        if input:dim() == 3 then
@@ -153,7 +152,7 @@ function ConvolutionImpl:createIODescriptors(input)
           batch = false
        end
     end
-    assert(input:dim() == mydim and input:isContiguous());
+    assert(input:dim() == mydim and input:isContiguous(), 'input dim:' .. input:dim());
 
     if self.iDesc and self.oDesc and arraysEqual(iSize, input:size()) then
        return false
@@ -181,9 +180,9 @@ function ConvolutionImpl:createIODescriptors(input)
     self.convDesc = ffi.new('struct cudnnConvolutionStruct*[1]')
     errcheck('cudnnCreateConvolutionDescriptor', self.convDesc)
 
-    local pad = torch.IntTensor({self.padH, self.padW})
-    local stride = torch.IntTensor({self.dH, self.dW})
-    local upscale = torch.IntTensor({1,1})
+    local pad = nil
+    local stride = nil
+    local upscale = nil
     if  mydim == 5 then
           pad = torch.IntTensor({self.padT, self.padH, self.padW})
           stride = torch.IntTensor({self.dT, self.dH, self.dW})
@@ -212,9 +211,10 @@ function ConvolutionImpl:createIODescriptors(input)
     oSize[2] = oSize[2] * self.groups
     self.output:resize(oSize:long():storage())
     local output_slice;
-    output_slice = {{},{1,self.nOutputPlane/self.groups},{},{}}
+
     -- create descriptor for output
     if mydim ==5 then
+       output_slice = {{},{1,self.nOutputPlane/self.groups},{},{},{}}
        self.oDesc = cudnn.toDescriptor(self.output)
        self.oDescForBias = cudnn.toDescriptor(
           self.output:view(self.output:size(1),
@@ -222,6 +222,7 @@ function ConvolutionImpl:createIODescriptors(input)
                            self.output:size(3)*self.output:size(4),
                            self.output:size(5)))
     else
+       output_slice = {{},{1,self.nOutputPlane/self.groups},{},{}}
        self.oDescForBias = cudnn.toDescriptor(self.output)
        self.oDesc = cudnn.toDescriptor(self.output[output_slice])
     end
