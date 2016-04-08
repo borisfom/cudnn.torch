@@ -106,6 +106,6 @@ end
 
 function SpatialSoftMax:clearState()
    self:clearDesc()
-   nn.utils.clear(self, '_gradOutput')
+   self._gradOutput = nil
    return parent.clearState(self)
 end
