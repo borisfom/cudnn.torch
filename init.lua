@@ -123,6 +123,7 @@ require('cudnn.VolumetricBatchNormalization')
 require('cudnn.SpatialCrossEntropyCriterion')
 require('cudnn.TemporalConvolution')
 require('cudnn.RNN')
+require('cudnn.BLSTM')
 require('cudnn.functional')
 require('cudnn.convert')
 
