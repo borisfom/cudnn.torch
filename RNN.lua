@@ -31,6 +31,14 @@ function RNN:__init(inputSize, hiddenSize, numLayers)
    self:reset()
 end
 
+function RNN:resizeOutput(tensor)
+    return tensor:resize(self.seqLength, self.miniBatch, self.hiddenSize)
+end
+
+function RNN:resizeHidden(tensor)
+    return tensor:resize(self.numLayers, self.miniBatch, self.hiddenSize)
+end
+
 function RNN:reset(stdv)
    stdv = stdv or 1.0 / math.sqrt(self.hiddenSize)
 
@@ -50,7 +58,7 @@ function RNN:reset(stdv)
    self.gradWeight:resizeAs(self.weight):zero()
 end
 
-local function createDescriptors(count, descs_type, create_func, destroy_func)
+function RNN:createDescriptors(count, descs_type, create_func, destroy_func)
    local ds = ffi.new(descs_type, count)
    for i = 0, count - 1 do
       errcheck(create_func, ds + i)
@@ -64,29 +72,29 @@ local function createDescriptors(count, descs_type, create_func, destroy_func)
    return ds
 end
 
-local function createDropoutDescriptors(count)
-   return createDescriptors(count,
+function RNN:createDropoutDescriptors(count)
+   return self:createDescriptors(count,
                             'cudnnDropoutDescriptor_t[?]',
                             'cudnnCreateDropoutDescriptor',
                             'cudnnDestroyDropoutDescriptor')
 end
 
-local function createFilterDescriptors(count)
-   return createDescriptors(count,
+function RNN:createFilterDescriptors(count)
+   return self:createDescriptors(count,
                             'cudnnFilterDescriptor_t[?]',
                             'cudnnCreateFilterDescriptor',
                             'cudnnDestroyFilterDescriptor')
 end
 
-local function createRNNDescriptors(count)
-   return createDescriptors(count,
+function RNN:createRNNDescriptors(count)
+   return self:createDescriptors(count,
                             'cudnnRNNDescriptor_t[?]',
                             'cudnnCreateRNNDescriptor',
                             'cudnnDestroyRNNDescriptor')
 end
 
-local function createTensorDescriptors(count)
-   return createDescriptors(count,
+function RNN:createTensorDescriptors(count)
+   return self:createDescriptors(count,
                             'cudnnTensorDescriptor_t[?]',
                             'cudnnCreateTensorDescriptor',
                             'cudnnDestroyTensorDescriptor')
@@ -94,7 +102,7 @@ end
 
 function RNN:resetDropoutDescriptor()
    if not self.dropoutDesc then
-      self.dropoutDesc = createDropoutDescriptors(1)
+      self.dropoutDesc = self:createDropoutDescriptors(1)
    end
 
    self.dropoutStatesSize = torch.LongTensor(1)
@@ -113,7 +121,7 @@ end
 
 function RNN:resetRNNDescriptor()
    if not self.rnnDesc then
-      self.rnnDesc = createRNNDescriptors(1)
+      self.rnnDesc = self:createRNNDescriptors(1)
    end
 
    errcheck('cudnnSetRNNDescriptor',
@@ -130,7 +138,7 @@ end
 
 function RNN:resetWeightDescriptor()
    if not self.wDesc then
-      self.wDesc = createFilterDescriptors(1)
+      self.wDesc = self:createFilterDescriptors(1)
    end
 
    local dim = torch.IntTensor({self.weight:size(1), 1, 1})
@@ -144,8 +152,8 @@ function RNN:resetWeightDescriptor()
 end
 
 function RNN:resetIODescriptors()
-   self.xDescs = createTensorDescriptors(self.seqLength)
-   self.yDescs = createTensorDescriptors(self.seqLength)
+   self.xDescs = self:createTensorDescriptors(self.seqLength)
+   self.yDescs = self:createTensorDescriptors(self.seqLength)
 
    for i = 0, self.seqLength - 1 do
       local dim = torch.IntTensor({self.inputSize, self.miniBatch, self.seqLength})
@@ -169,8 +177,8 @@ function RNN:resetIODescriptors()
 end
 
 function RNN:resetHiddenDescriptors()
-   self.hxDesc = createTensorDescriptors(1)
-   self.hyDesc = createTensorDescriptors(1)
+   self.hxDesc = self:createTensorDescriptors(1)
+   self.hyDesc = self:createTensorDescriptors(1)
 
    local dim = torch.IntTensor({self.hiddenSize, self.miniBatch, self.numLayers})
    local stride = torch.IntTensor({1, dim[1], dim[1] * dim[2]})
@@ -190,8 +198,8 @@ function RNN:resetHiddenDescriptors()
 end
 
 function RNN:resetCellDescriptors()
-   self.cxDesc = createTensorDescriptors(1)
-   self.cyDesc = createTensorDescriptors(1)
+   self.cxDesc = self:createTensorDescriptors(1)
+   self.cyDesc = self:createTensorDescriptors(1)
 
    local dim = torch.IntTensor({self.hiddenSize, self.miniBatch, self.numLayers})
    local stride = torch.IntTensor({1, dim[1], dim[1] * dim[2]})
@@ -210,7 +218,7 @@ function RNN:resetCellDescriptors()
             stride:data())
 end
 
-local function makeContiguous(self, input, gradOutput)
+function RNN:makeContiguous(input, gradOutput)
    if not input:isContiguous() then
       self._input = self._input or input.new()
       self._input:typeAs(input):resizeAs(input):copy(input)
@@ -263,11 +271,11 @@ function RNN:updateOutput(input)
       self:resetWeightDescriptor()
    end
 
-   local x = makeContiguous(self, input)
-   local y = self.output:resize(self.seqLength, self.miniBatch, self.hiddenSize)
+   local x = self:makeContiguous(input)
+   local y = self:resizeOutput(self.output)
    local w = self.weight
-   local hy = self.hiddenOutput:resize(self.numLayers, self.miniBatch, self.hiddenSize):zero()
-   local cy = self.cellOutput:resize(self.numLayers, self.miniBatch, self.hiddenSize):zero()
+   local hy = self:resizeHidden(self.hiddenOutput):zero()
+   local cy = self:resizeHidden(self.cellOutput):zero()
 
    -- Optionally use hiddenInput/cellInput parameters
    local hx = self.hiddenInput
@@ -351,7 +359,7 @@ function RNN:updateGradInput(input, gradOutput)
    assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
    assert(self.train, 'updateGradInput can only be called when training!')
 
-   local x, dy = makeContiguous(self, input, gradOutput)
+   local x, dy = self:makeContiguous(self, input, gradOutput)
    local y = self.output
    local w = self.weight
    local dx = self.gradInput:resizeAs(input)
@@ -359,8 +367,8 @@ function RNN:updateGradInput(input, gradOutput)
    local cx = self.cellInput
    local dhy = self.gradHiddenOutput
    local dcy = self.gradCellOutput
-   local dhx = self.gradHiddenInput:resize(self.numLayers, self.miniBatch, self.hiddenSize):zero()
-   local dcx = self.gradCellInput:resize(self.numLayers, self.miniBatch, self.hiddenSize):zero()
+   local dhx = self:resizeHidden(self.gradHiddenInput):zero()
+   local dcx = self:resizeHidden(self.gradCellInput):zero()
 
 
    if hx then
@@ -428,7 +436,7 @@ function RNN:accGradParameters(input, gradOutput, scale)
    assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
    assert(self.train, 'accGradParameters can only be called when training!')
 
-   local x, dy = makeContiguous(self, input, gradOutput)
+   local x, dy = self:makeContiguous(input, gradOutput)
    local hx = self.hiddenInput
    local y = self.output
    local dw = self.gradWeight
