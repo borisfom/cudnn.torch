@@ -359,7 +359,7 @@ function RNN:updateGradInput(input, gradOutput)
    assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
    assert(self.train, 'updateGradInput can only be called when training!')
 
-   local x, dy = self:makeContiguous(self, input, gradOutput)
+   local x, dy = self:makeContiguous(input, gradOutput)
    local y = self.output
    local w = self.weight
    local dx = self.gradInput:resizeAs(input)
