@@ -1,3 +1,7 @@
+--[[
+--  Tests the implementation of RNN binding using the cudnn v5 library. Cross-check the checksums with cudnn reference
+--  sample checksums.
+-- ]]
 require 'cudnn'
 require 'cunn'
 local ffi = require 'ffi'
