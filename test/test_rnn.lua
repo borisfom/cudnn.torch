@@ -142,8 +142,8 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
     for m = 1, numberOfLayers do
         for j = 1, miniBatch do
             for i = 1, hiddenSize do
-                localSumdh = localSumdh + rnn.gradHiddenOutput[m][j][i]
-                localSumdc = localSumdc + rnn.gradCellOutput[m][j][i]
+                localSumdh = localSumdh + rnn.gradHiddenInput[m][j][i]
+                localSumdc = localSumdc + rnn.gradCellInput[m][j][i]
             end
         end
     end
