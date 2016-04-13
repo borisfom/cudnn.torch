@@ -13,6 +13,26 @@ local mytester
 
 local tolerance = 300
 
+
+function cudnntest.testBLSTM()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 8
+    local nbDirections = 2
+    local rnn = cudnn.BLSTM(hiddenSize, hiddenSize, numberOfLayers)
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 5.749536E+05, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumc, 4.365091E+05, tolerance, 'checkSum with reference for localSumc failed')
+    mytester:assertalmosteq(checkSums.localSumh, 5.774818E+04, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 3.842206E+02, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdc, 9.323785E+03, tolerance, 'checkSum with reference for localSumdc failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 1.182566E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 4.313461E+08, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
 function cudnntest.testRNNRELU()
     local miniBatch = 64
     local seqLength = 20
@@ -162,14 +182,14 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
         end
     end
     -- Set hx/cx/dhy/dcy data to 1s.
-    rnn.hiddenInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize):fill(1)
-    rnn.cellInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize):fill(1)
-    rnn.gradHiddenOutput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize):fill(1)
-    rnn.gradCellOutput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize):fill(1)
+    rnn.hiddenInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize * biDirectionalScale):fill(1)
+    rnn.cellInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize * biDirectionalScale):fill(1)
+    rnn.gradHiddenOutput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
+    rnn.gradCellOutput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
 
     local testOutputi = rnn:forward(input)
     -- gradInput set to 1s.
-    local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1)
+    local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize * biDirectionalScale):fill(1)
     rnn:backward(input, gradInput)
 
     -- Sum up all values for each.
