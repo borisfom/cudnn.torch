@@ -115,19 +115,20 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
             local dataType = 'CUDNN_DATA_FLOAT'
             local format = 'CUDNN_TENSOR_NCHW'
             local nbDims = torch.IntTensor(1)
-            local filterDimA = torch.IntTensor({ 1, 1, 1 })
 
+            local minDim = 3
+            local filterDimA = torch.ones(minDim):int()
             errcheck('cudnnGetFilterNdDescriptor',
                 linLayerMatDesc[0],
-                3,
+                minDim,
                 ffi.cast("cudnnDataType_t*", dataType),
                 ffi.cast("cudnnDataType_t*", format),
                 nbDims:data(),
                 filterDimA:data())
 
             local offset = matrixPointer[0] - rnn.weight:data()
-            local weightTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA[1] * filterDimA[2] * filterDimA[3])
-            weightTensor:fill(1.0 / (filterDimA[1] * filterDimA[2] * filterDimA[3]))
+            local weightTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
+            weightTensor:fill(1.0 / filterDimA:prod())
 
             local linLayerBiasDesc = rnn:createFilterDescriptors(1)
             local biasPointer = ffi.new("float*[1]")
@@ -145,18 +146,18 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
             local dataType = 'CUDNN_DATA_FLOAT'
             local format = 'CUDNN_TENSOR_NCHW'
             local nbDims = torch.IntTensor(1)
-            local filterDimA = torch.IntTensor({ 1, 1, 1 })
+            local filterDimA = torch.ones(minDim):int()
 
             errcheck('cudnnGetFilterNdDescriptor',
                 linLayerBiasDesc[0],
-                3,
+                minDim,
                 ffi.cast("cudnnDataType_t*", dataType),
                 ffi.cast("cudnnDataType_t*", format),
                 nbDims:data(),
                 filterDimA:data())
 
             local offset = biasPointer[0] - rnn.weight:data()
-            local biasTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA[1] * filterDimA[2] * filterDimA[3])
+            local biasTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
             biasTensor:fill(1)
         end
     end
