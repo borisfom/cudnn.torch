@@ -1,3 +1,8 @@
+--[[
+--  Tests the implementation of RNN binding using the cudnn v5 library. Cross-check the checksums with cudnn reference
+--  sample checksums.
+-- ]]
+
 require 'cudnn'
 require 'cunn'
 local ffi = require 'ffi'
@@ -7,24 +12,6 @@ local cudnntest = torch.TestSuite()
 local mytester
 
 local tolerance = 300
-
-function cudnntest.testBLSTM()
-    local miniBatch = 64
-    local seqLength = 20
-    local hiddenSize = 512
-    local numberOfLayers = 2
-    local numberOfLinearLayers = 8
-    local rnn = cudnn.BLSTM(hiddenSize, hiddenSize, numberOfLayers)
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, 2)
-    -- Checksums to check against are retrieved from cudnn RNN sample.
-    mytester:assertalmosteq(checkSums.localSumi, 8.178552E+05, tolerance, 'checkSum with reference for localsumi failed')
-    mytester:assertalmosteq(checkSums.localSumc, 7.648561E+05, tolerance, 'checkSum with reference for localSumc failed')
-    mytester:assertalmosteq(checkSums.localSumh, 9.759226E+04, tolerance, 'checkSum with reference for localSumh failed')
-    mytester:assertalmosteq(checkSums.localSumdi, 6.575394E+02, tolerance, 'checkSum with reference for localSumdi failed')
-    mytester:assertalmosteq(checkSums.localSumdc, 7.621405E+04 , tolerance, 'checkSum with reference for localSumdc failed')
-    mytester:assertalmosteq(checkSums.localSumdh, 1.451992E+04, tolerance, 'checkSum with reference for localSumdh failed')
-    mytester:assertalmosteq(checkSums.localSumdw, 2.137403E+09, tolerance, 'checkSum with reference for localSumdw failed')
-end
 
 function cudnntest.testRNNRELU()
     local miniBatch = 64
