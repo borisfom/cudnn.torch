@@ -168,7 +168,7 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
 
     local testOutputi = rnn:forward(input)
     -- gradInput set to 1s.
-    local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize * 2):fill(1)
+    local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1)
     rnn:backward(input, gradInput)
 
     -- Sum up all values for each.
