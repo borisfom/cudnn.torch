@@ -10,8 +10,7 @@ local errcheck = cudnn.errcheck
 local cudnntest = torch.TestSuite()
 local mytester
 
-local tolerance = 70
-
+local tolerance = 300
 
 function cudnntest.testRNNRELU()
     local miniBatch = 64
@@ -90,7 +89,7 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
 
     local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
     local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.mode = mode -- Set the mode (GRU/LSTM/ReLU/tanh
+    rnn.mode = mode -- Set the mode (GRU/LSTM/ReLU/tanh)
     rnn:reset()
     rnn:resetWeightDescriptor()
 
