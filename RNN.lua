@@ -1,4 +1,4 @@
-local RNN, parent = torch.class('cudnn.RNN', 'nn.Module')
+local RNN, parent = torch.class('cudnn.testRNN', 'nn.Module')
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
@@ -420,7 +420,6 @@ function RNN:updateGradInput(input, gradOutput)
             self.cxDesc[0], dcx:data(),
             self.workspace:data(), self.workspace:size(1) * 4, -- sizeof(float)
             self.reserve:data(), self.reserve:size(1) * 4) -- sizeof(float)
-
    return self.gradInput
 end
 
