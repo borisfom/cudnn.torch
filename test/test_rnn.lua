@@ -18,8 +18,9 @@ function cudnntest.testRNNRELU()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
-    local mode = 'CUDNN_RNN_RELU'
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.mode = 'CUDNN_RNN_RELU'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 1.315793E+06, tolerance, 'checkSum with reference for localsumi failed')
@@ -35,8 +36,9 @@ function cudnntest.testRNNTANH()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
-    local mode = 'CUDNN_RNN_TANH'
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.mode = 'CUDNN_RNN_TANH'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 6.319591E+05, tolerance, 'checkSum with reference for localsumi failed')
@@ -52,8 +54,9 @@ function cudnntest.testRNNLSTM()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 8
-    local mode = 'CUDNN_LSTM'
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.mode = 'CUDNN_LSTM'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 5.749536E+05, tolerance, 'checkSum with reference for localsumi failed')
@@ -71,9 +74,9 @@ function cudnntest.testRNNGRU()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 6
-    local mode = 'CUDNN_GRU'
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
-
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.mode = 'CUDNN_GRU'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 6.358978E+05, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumh, 6.281680E+04, tolerance, 'checkSum with reference for localSumh failed')
@@ -85,13 +88,11 @@ end
 --[[
 -- Method gets Checksums of RNN to compare with ref Checksums in cudnn RNN C sample.
 -- ]]
-function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
-
-    local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.mode = mode -- Set the mode (GRU/LSTM/ReLU/tanh)
+function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
+    -- Reset the rnn and weight descriptor (since we are manually setting values for matrix/bias.
     rnn:reset()
     rnn:resetWeightDescriptor()
+    local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
 
     -- Matrices are initialised to 1 / matrixSize, biases to 1.
     for layer = 0, numberOfLayers - 1 do
