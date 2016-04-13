@@ -16,13 +16,6 @@ function cudnntest.testRNN()
     local numberOfLinearLayers = 2
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers)
 
-    print(string.format("i %E", checkSums.localSumi))
-    print(string.format("h %E", checkSums.localSumh))
-    print(string.format("c %E", checkSums.localSumc))
-    print(string.format("di %E", checkSums.localSumdi))
-    print(string.format("dh %E", checkSums.localSumdh))
-    print(string.format("dw %E", checkSums.localSumdw))
-
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 1.315793E+06, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumh, 1.315212E+05, tolerance, 'checkSum with reference for localSumh failed')
