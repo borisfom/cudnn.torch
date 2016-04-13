@@ -8,13 +8,15 @@ local mytester
 
 local tolerance = 70
 
-function cudnntest.testRNN()
+
+function cudnntest.testRNNRELU()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers)
+    local mode = 'CUDNN_RNN_RELU'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
 
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 1.315793E+06, tolerance, 'checkSum with reference for localsumi failed')
@@ -24,13 +26,68 @@ function cudnntest.testRNN()
     mytester:assertalmosteq(checkSums.localSumdw, 1.453750E+09, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
+function cudnntest.testRNNTANH()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 2
+    local mode = 'CUDNN_RNN_TANH'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 6.319591E+05, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 6.319605E+04, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 4.501830E+00, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 4.489546E+00, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 5.012598E+07, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
+function cudnntest.testRNNLSTM()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 8
+    local mode = 'CUDNN_LSTM'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 5.749536E+05, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumc, 4.365091E+05, tolerance, 'checkSum with reference for localSumc failed')
+    mytester:assertalmosteq(checkSums.localSumh, 5.774818E+04, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 3.842206E+02, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdc, 9.323785E+03, tolerance, 'checkSum with reference for localSumdc failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 1.182566E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 4.313461E+08, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
+function cudnntest.testRNNGRU()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 6
+    local mode = 'CUDNN_GRU'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
+
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 6.358978E+05, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 6.281680E+04, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 6.296622E+00, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 2.289960E+05, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 5.397419E+07, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
 --[[
 -- Method gets Checksums of RNN to compare with ref Checksums in cudnn RNN C sample.
 -- ]]
-function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers)
+function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, mode)
 
     local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
     local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.mode = mode -- Set the mode (GRU/LSTM/ReLU/tanh
+    rnn:reset()
     rnn:resetWeightDescriptor()
 
     -- Matrices are initialised to 1 / matrixSize, biases to 1.
