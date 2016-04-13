@@ -12,6 +12,7 @@ function RNN:__init(inputSize, hiddenSize, numLayers)
    self.miniBatch = 1
    self.numLayers = numLayers
    self.bidirectional = 'CUDNN_UNIDIRECTIONAL'
+   self.numDirections = 1 -- set to 2 for bi-directional.
    self.inputMode = 'CUDNN_LINEAR_INPUT'
    self.mode = 'CUDNN_RNN_RELU'
    self.dropout = 0
@@ -32,11 +33,11 @@ function RNN:__init(inputSize, hiddenSize, numLayers)
 end
 
 function RNN:resizeOutput(tensor)
-    return tensor:resize(self.seqLength, self.miniBatch, self.hiddenSize)
+    return tensor:resize(self.seqLength, self.miniBatch, self.hiddenSize * self.numDirections)
 end
 
 function RNN:resizeHidden(tensor)
-    return tensor:resize(self.numLayers, self.miniBatch, self.hiddenSize)
+    return tensor:resize(self.numLayers, self.miniBatch, self.hiddenSize * self.numDirections)
 end
 
 function RNN:reset(stdv)
@@ -165,7 +166,7 @@ function RNN:resetIODescriptors()
                dim:data(),
                stride:data())
 
-      local dim = torch.IntTensor({self.hiddenSize, self.miniBatch, self.seqLength})
+      local dim = torch.IntTensor({self.hiddenSize * self.numDirections, self.miniBatch, self.seqLength})
       local stride = torch.IntTensor({1, dim[1], dim[1] * dim[2]})
       errcheck('cudnnSetTensorNdDescriptor',
                self.yDescs[i],
