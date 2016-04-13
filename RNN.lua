@@ -367,9 +367,9 @@ function RNN:updateGradInput(input, gradOutput)
    local cx = self.cellInput
    local dhy = self.gradHiddenOutput
    local dcy = self.gradCellOutput
-
    local dhx = self:resizeHidden(self.gradHiddenInput):zero()
    local dcx = self:resizeHidden(self.gradCellInput):zero()
+
 
    if hx then
       assert(hx:dim() == 3, 'hiddenInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
@@ -405,8 +405,6 @@ function RNN:updateGradInput(input, gradOutput)
       assert(dcy:isContiguous(), 'gradCellOutput must be contiguous!')
    end
 
-
-
    errcheck('cudnnRNNBackwardData',
             cudnn.getHandle(),
             self.rnnDesc[0],
@@ -422,9 +420,6 @@ function RNN:updateGradInput(input, gradOutput)
             self.cxDesc[0], dcx:data(),
             self.workspace:data(), self.workspace:size(1) * 4, -- sizeof(float)
             self.reserve:data(), self.reserve:size(1) * 4) -- sizeof(float)
-
-
-
    return self.gradInput
 end
 
