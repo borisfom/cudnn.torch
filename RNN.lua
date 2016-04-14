@@ -1,4 +1,4 @@
-local RNN, parent = torch.class('cudnn.testRNN', 'nn.Module')
+local RNN, parent = torch.class('cudnn.RNN', 'nn.Module')
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
