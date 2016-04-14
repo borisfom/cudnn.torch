@@ -13,24 +13,25 @@ local mytester
 
 local tolerance = 300
 
-
-function cudnntest.testBLSTM()
+function cudnntest.testBiDirectionalRNN()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
     local numberOfLayers = 2
-    local numberOfLinearLayers = 8
+    local numberOfLinearLayers = 2
     local nbDirections = 2
-    local rnn = cudnn.BLSTM(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
+    rnn.mode = 'CUDNN_RNN_TANH'
+    rnn.numDirections = 2
+
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
-    mytester:assertalmosteq(checkSums.localSumi, 5.749536E+05, tolerance, 'checkSum with reference for localsumi failed')
-    mytester:assertalmosteq(checkSums.localSumc, 4.365091E+05, tolerance, 'checkSum with reference for localSumc failed')
-    mytester:assertalmosteq(checkSums.localSumh, 5.774818E+04, tolerance, 'checkSum with reference for localSumh failed')
-    mytester:assertalmosteq(checkSums.localSumdi, 3.842206E+02, tolerance, 'checkSum with reference for localSumdi failed')
-    mytester:assertalmosteq(checkSums.localSumdc, 9.323785E+03, tolerance, 'checkSum with reference for localSumdc failed')
-    mytester:assertalmosteq(checkSums.localSumdh, 1.182566E+01, tolerance, 'checkSum with reference for localSumdh failed')
-    mytester:assertalmosteq(checkSums.localSumdw, 4.313461E+08, tolerance, 'checkSum with reference for localSumdw failed')
+    mytester:assertalmosteq(checkSums.localSumi, 4.427218E+03, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 6.340836E+04, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 7.226166E+00, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 9.618800E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 1.404362E+09, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
 function cudnntest.testRNNRELU()
@@ -182,11 +183,10 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
         end
     end
     -- Set hx/cx/dhy/dcy data to 1s.
-    rnn.hiddenInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize * biDirectionalScale):fill(1)
-    rnn.cellInput = torch.CudaTensor(numberOfLayers, miniBatch, hiddenSize * biDirectionalScale):fill(1)
+    rnn.hiddenInput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
+    rnn.cellInput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
     rnn.gradHiddenOutput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
     rnn.gradCellOutput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
-
     local testOutputi = rnn:forward(input)
     -- gradInput set to 1s.
     local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize * biDirectionalScale):fill(1)
