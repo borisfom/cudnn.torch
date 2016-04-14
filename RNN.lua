@@ -284,14 +284,14 @@ function RNN:updateOutput(input)
 
    if hx then
       assert(hx:dim() == 3, 'hiddenInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
-      assert(hx:size(1) == self.numLayers, 'hiddenInput has incorrect number of layers!')
+      assert(hx:size(1) == self.numLayers * self.numDirections, 'hiddenInput has incorrect number of layers!')
       assert(hx:size(2) == self.miniBatch, 'hiddenInput has incorrect number of minibathes!')
       assert(hx:size(3) == self.hiddenSize, 'hiddenIinput has incorrect size!')
       assert(hx:isContiguous(), 'hiddenInput must be contiguous!') end
 
    if cx then
       assert(cx:dim() == 3, 'cellInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
-      assert(cx:size(1) == self.numLayers, 'cellInput has incorrect number of layers!')
+      assert(cx:size(1) == self.numLayers * self.numDirections, 'cellInput has incorrect number of layers!')
       assert(cx:size(2) == self.miniBatch, 'cellInput has incorrect number of minibathes!')
       assert(cx:size(3) == self.hiddenSize, 'cellInput has incorrect size!')
       assert(cx:isContiguous(), 'cellInput must be contiguous!')
@@ -374,7 +374,7 @@ function RNN:updateGradInput(input, gradOutput)
 
    if hx then
       assert(hx:dim() == 3, 'hiddenInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
-      assert(hx:size(1) == self.numLayers, 'hiddenInput has incorrect number of layers!')
+      assert(hx:size(1) == self.numLayers * self.numDirections, 'hiddenInput has incorrect number of layers!')
       assert(hx:size(2) == self.miniBatch, 'hiddenInput has incorrect minibatch size!')
       assert(hx:size(3) == self.hiddenSize, 'hiddenInput has incorrect size!')
       assert(hx:isContiguous(), 'hiddenInput must be contiguous!')
@@ -382,7 +382,7 @@ function RNN:updateGradInput(input, gradOutput)
 
    if cx then
       assert(cx:dim() == 3, 'cellInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
-      assert(cx:size(1) == self.numLayers, 'cellInput has incorrect number of layers!')
+      assert(cx:size(1) == self.numLayers * self.numDirections, 'cellInput has incorrect number of layers!')
       assert(cx:size(2) == self.miniBatch, 'cellInput has incorrect minibatch size!')
       assert(cx:size(3) == self.hiddenSize, 'cellInput has incorrect size!')
       assert(cx:isContiguous(), 'cellInput must be contiguous!')
@@ -391,7 +391,7 @@ function RNN:updateGradInput(input, gradOutput)
    if dhy then
       assert(dhy:dim() == 3, 'gradHiddenOutput must have 3 dimensions: ' ..
                              'numLayers, miniBatch, hiddenSize')
-      assert(dhy:size(1) == self.numLayers, 'gradHiddenOutput has incorrect number of layers!')
+      assert(dhy:size(1) == self.numLayers * self.numDirections, 'gradHiddenOutput has incorrect number of layers!')
       assert(dhy:size(2) == self.miniBatch, 'gradHiddenOutput has incorrect minibatch size!')
       assert(dhy:size(3) == self.hiddenSize, 'gradHiddenOutput has incorrect size!')
       assert(dhy:isContiguous(), 'gradHiddenOutput must be contiguous!')
@@ -400,7 +400,7 @@ function RNN:updateGradInput(input, gradOutput)
    if dcy then
       assert(dcy:dim() == 3, 'gradCellOutput must have 3 dimensions: ' ..
                              'numLayers, miniBatch, hiddenSize')
-      assert(dcy:size(1) == self.numLayers, 'gradCellOutput has incorrect number of layers!')
+      assert(dcy:size(1) == self.numLayers * self.numDirections, 'gradCellOutput has incorrect number of layers!')
       assert(dcy:size(2) == self.miniBatch, 'gradCellOutput has incorrect minibatch size!')
       assert(dcy:size(3) == self.hiddenSize, 'gradCellOutput has incorrect size!')
       assert(dcy:isContiguous(), 'gradCellOutput must be contiguous!')
