@@ -1,4 +1,4 @@
-local RNN, parent = torch.class('cudnn.RNN', 'nn.Module')
+local RNN, parent = torch.class('cudnn.testRNN', 'nn.Module')
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
@@ -443,7 +443,7 @@ function RNN:accGradParameters(input, gradOutput, scale)
 
    if hx then
       assert(hx:dim() == 3, 'hiddenInput must have 3 dimensions: numLayers, miniBatch, hiddenSize')
-      assert(hx:size(1) == self.numLayers, 'hiddenInput has incorrect number of layers!')
+      assert(hx:size(1) == self.numLayers * self.numDirections, 'hiddenInput has incorrect number of layers!')
       assert(hx:size(2) == self.miniBatch, 'hiddenInput has incorrect minibatch size!')
       assert(hx:size(3) == self.hiddenSize, 'hiddenIinput has incorrect size!')
       assert(hx:isContiguous(), 'hiddenInput must be contiguous!')
