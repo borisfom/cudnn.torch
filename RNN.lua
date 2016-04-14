@@ -37,7 +37,7 @@ function RNN:resizeOutput(tensor)
 end
 
 function RNN:resizeHidden(tensor)
-    return tensor:resize(self.numLayers, self.miniBatch, self.hiddenSize * self.numDirections)
+    return tensor:resize(self.numLayers * self.numDirections, self.miniBatch, self.hiddenSize)
 end
 
 function RNN:reset(stdv)
