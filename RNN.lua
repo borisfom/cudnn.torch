@@ -235,10 +235,10 @@ function RNN:makeContiguous(input, gradOutput)
 end
 
 function RNN:updateOutput(input)
+    if (self.batchFirst) then
+        input = input:transpose(1, 2)
+    end
    assert(input:dim() == 3, 'input must have 3 dimensions: seqLength, miniBatch, inputSize')
-   if(self.batchFirst) then
-       input = input:transpose(1, 2)
-   end
    -- Decide which descriptors/tensors need to be updated.
    local resetRNN = not self.dropoutDesc or not self.rnnDesc
    local resetIO = not self.xDescs or not self.yDescs
@@ -355,14 +355,13 @@ function RNN:updateOutput(input)
 end
 
 function RNN:updateGradInput(input, gradOutput)
+    if (self.batchFirst) then
+        gradOutput = gradOutput:transpose(1, 2)
+    end
    assert(input:dim() == 3, 'input should have 3 dimensions: seqLength, miniBatch, inputSize')
    assert(input:size(1) == self.seqLength, 'input has incorrect sequence length!')
    assert(input:size(2) == self.miniBatch, 'input has incorrect minibatch size!')
    assert(input:size(3) == self.inputSize, 'input has incorrect size!')
-
-   if(self.batchFirst) then
-       gradOutput = gradOutput:transpose(1, 2)
-   end
 
    assert(gradOutput:isSameSizeAs(self.output), 'gradOutput has incorrect size!')
    assert(self.train, 'updateGradInput can only be called when training!')
