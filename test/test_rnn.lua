@@ -55,8 +55,7 @@ function cudnntest.testRNNLSTM()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 8
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.mode = 'CUDNN_LSTM'
+    local rnn = cudnn.LSTM(hiddenSize, hiddenSize, numberOfLayers)
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
     -- Checksums to check against are retrieved from cudnn RNN sample.
@@ -75,8 +74,7 @@ function cudnntest.testRNNGRU()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 6
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.mode = 'CUDNN_GRU'
+    local rnn = cudnn.GRU(hiddenSize, hiddenSize, numberOfLayers)
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 6.358978E+05, tolerance, 'checkSum with reference for localsumi failed')
@@ -93,7 +91,7 @@ function cudnntest.testBiDirectionalRELURNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
     local nbDirections = 2
-    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_RNN_RELU'
     rnn.numDirections = 2
@@ -114,7 +112,7 @@ function cudnntest.testBiDirectionalTANHRNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
     local nbDirections = 2
-    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_RNN_TANH'
     rnn.numDirections = 2
@@ -135,10 +133,7 @@ function cudnntest.testBiDirectionalLSTMRNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 8
     local nbDirections = 2
-    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
-    rnn.mode = 'CUDNN_LSTM'
-    rnn.numDirections = 2
+    local rnn = cudnn.BLSTM(hiddenSize, hiddenSize, numberOfLayers)
 
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
@@ -158,7 +153,7 @@ function cudnntest.testBiDirectionalGRURNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 6
     local nbDirections = 2
-    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_GRU'
     rnn.numDirections = 2
