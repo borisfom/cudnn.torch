@@ -31,6 +31,25 @@ function cudnntest.testRNNRELU()
     mytester:assertalmosteq(checkSums.localSumdw, 1.453750E+09, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
+function cudnntest.testRNNBatchFirst()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 2
+    local batchFirst = true
+    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers, batchFirst)
+    rnn.mode = 'CUDNN_RNN_RELU'
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst)
+
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 1.315793E+06, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 1.315212E+05, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 6.676003E+01, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 6.425067E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 1.453750E+09, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
 function cudnntest.testRNNTANH()
     local miniBatch = 64
     local seqLength = 20
@@ -91,12 +110,13 @@ function cudnntest.testBiDirectionalRELURNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
     local nbDirections = 2
+    local batchFirst = false
     local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_RNN_RELU'
     rnn.numDirections = 2
 
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 1.388634E+01, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumh, 1.288997E+01, tolerance, 'checkSum with reference for localSumh failed')
@@ -112,12 +132,13 @@ function cudnntest.testBiDirectionalTANHRNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
     local nbDirections = 2
+    local batchFirst = false
     local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_RNN_TANH'
     rnn.numDirections = 2
 
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 1.388634E+01, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumh, 1.288997E+01, tolerance, 'checkSum with reference for localSumh failed')
@@ -133,9 +154,10 @@ function cudnntest.testBiDirectionalLSTMRNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 8
     local nbDirections = 2
+    local batchFirst = false
     local rnn = cudnn.BLSTM(hiddenSize, hiddenSize, numberOfLayers)
 
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 3.134097E+04, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumc, 3.845626E+00, tolerance, 'checkSum with reference for localSumc failed')
@@ -153,12 +175,13 @@ function cudnntest.testBiDirectionalGRURNN()
     local numberOfLayers = 2
     local numberOfLinearLayers = 6
     local nbDirections = 2
+    local batchFirst = false
     local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
     rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
     rnn.mode = 'CUDNN_GRU'
     rnn.numDirections = 2
 
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst, nbDirections)
     -- Checksums to check against are retrieved from cudnn RNN sample.
     mytester:assertalmosteq(checkSums.localSumi, 6.555183E+04, tolerance, 'checkSum with reference for localsumi failed')
     mytester:assertalmosteq(checkSums.localSumh, 5.830924E+00, tolerance, 'checkSum with reference for localSumh failed')
@@ -170,14 +193,18 @@ end
 --[[
 -- Method gets Checksums of RNN to compare with ref Checksums in cudnn RNN C sample.
 -- ]]
-function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, biDirectional)
-    local biDirectionalScale = biDirectional or 1
+function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst, nbDirections)
+    local biDirectionalScale = nbDirections or 1
     -- Reset the rnn and weight descriptor (since we are manually setting values for matrix/bias.
     rnn:reset()
     rnn:resetWeightDescriptor()
-    local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
-
-    if (biDirectional) then
+    local input
+    if (batchFirst) then
+        input = torch.CudaTensor(miniBatch, seqLength, hiddenSize):fill(1)
+    else
+        input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
+    end
+    if (biDirectionalScale == 2) then
         rnn.weight:fill(1 / rnn.weight:size(1))
     else
         -- Matrices are initialised to 1 / matrixSize, biases to 1.
@@ -253,15 +280,31 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
     rnn.gradCellOutput = torch.CudaTensor(numberOfLayers * biDirectionalScale, miniBatch, hiddenSize):fill(1)
     local testOutputi = rnn:forward(input)
     -- gradInput set to 1s.
-    local gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize * biDirectionalScale):fill(1)
+    local gradInput
+    if(batchFirst) then
+        gradInput = torch.CudaTensor(miniBatch, seqLength, hiddenSize * biDirectionalScale):fill(1)
+    else
+        gradInput = torch.CudaTensor(seqLength, miniBatch, hiddenSize * biDirectionalScale):fill(1)
+    end
     rnn:backward(input, gradInput)
 
     -- Sum up all values for each.
     local localSumi = 0
     local localSumh = 0
     local localSumc = 0
-    for m = 1, seqLength do
-        for j = 1, miniBatch do
+
+    local mLength
+    local jLength
+    if(batchFirst) then
+        mLength = miniBatch
+        jLength = seqLength
+    else
+        mLength = seqLength
+        jLength = miniBatch
+    end
+
+    for m = 1, mLength do
+        for j = 1, jLength do
             for i = 1, hiddenSize * biDirectionalScale do
                 localSumi = localSumi + testOutputi[m][j][i]
             end
@@ -280,8 +323,8 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
     local localSumdi = 0
     local localSumdh = 0
     local localSumdc = 0
-    for m = 1, seqLength do
-        for j = 1, miniBatch do
+    for m = 1, mLength do
+        for j = 1, jLength do
             for i = 1, hiddenSize do
                 localSumdi = localSumdi + rnn.gradInput[m][j][i]
             end
