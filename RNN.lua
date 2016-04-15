@@ -350,7 +350,9 @@ function RNN:updateOutput(input)
                self.cyDesc[0], cy:data(),
                self.workspace:data(), self.workspace:size(1) * 4) -- sizeof(float)
    end
-
+    if (self.batchFirst) then
+        self.output = self.output:transpose(1, 2)
+    end
    return self.output
 end
 
@@ -358,6 +360,7 @@ function RNN:updateGradInput(input, gradOutput)
     if (self.batchFirst) then
         input = input:transpose(1, 2)
         gradOutput = gradOutput:transpose(1, 2)
+        self.output = self.output:transpose(1, 2)
     end
    assert(input:dim() == 3, 'input should have 3 dimensions: seqLength, miniBatch, inputSize')
    assert(input:size(1) == self.seqLength, 'input has incorrect sequence length!')
@@ -428,6 +431,9 @@ function RNN:updateGradInput(input, gradOutput)
             self.cxDesc[0], dcx:data(),
             self.workspace:data(), self.workspace:size(1) * 4, -- sizeof(float)
             self.reserve:data(), self.reserve:size(1) * 4) -- sizeof(float)
+    if (self.batchFirst) then
+        self.gradInput = self.gradInput:transpose(1, 2)
+    end
    return self.gradInput
 end
 
