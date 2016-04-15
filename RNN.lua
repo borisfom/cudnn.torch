@@ -356,7 +356,8 @@ end
 
 function RNN:updateGradInput(input, gradOutput)
     if (self.batchFirst) then
-        gradOutput = gradOutput:transpose(1, 2)
+        input = input:transpose(1, 2)
+        gradOutput = gradOutput:tranpose(1, 2)
     end
    assert(input:dim() == 3, 'input should have 3 dimensions: seqLength, miniBatch, inputSize')
    assert(input:size(1) == self.seqLength, 'input has incorrect sequence length!')
@@ -431,6 +432,10 @@ function RNN:updateGradInput(input, gradOutput)
 end
 
 function RNN:accGradParameters(input, gradOutput, scale)
+    if (self.batchFirst) then
+        input = input:transpose(1, 2)
+        gradOutput = gradOutput:tranpose(1, 2)
+    end
    scale = scale or 1
    if scale == 0 then return end
 
