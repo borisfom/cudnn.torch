@@ -13,27 +13,6 @@ local mytester
 
 local tolerance = 300
 
-function cudnntest.testBiDirectionalRNN()
-    local miniBatch = 64
-    local seqLength = 20
-    local hiddenSize = 512
-    local numberOfLayers = 2
-    local numberOfLinearLayers = 2
-    local nbDirections = 2
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
-    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
-    rnn.mode = 'CUDNN_RNN_TANH'
-    rnn.numDirections = 2
-
-    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
-    -- Checksums to check against are retrieved from cudnn RNN sample.
-    mytester:assertalmosteq(checkSums.localSumi, 4.427218E+03, tolerance, 'checkSum with reference for localsumi failed')
-    mytester:assertalmosteq(checkSums.localSumh, 6.340836E+04, tolerance, 'checkSum with reference for localSumh failed')
-    mytester:assertalmosteq(checkSums.localSumdi, 7.226166E+00, tolerance, 'checkSum with reference for localSumdi failed')
-    mytester:assertalmosteq(checkSums.localSumdh, 9.618800E+01, tolerance, 'checkSum with reference for localSumdh failed')
-    mytester:assertalmosteq(checkSums.localSumdw, 1.404362E+09, tolerance, 'checkSum with reference for localSumdw failed')
-end
-
 function cudnntest.testRNNRELU()
     local miniBatch = 64
     local seqLength = 20
@@ -107,6 +86,92 @@ function cudnntest.testRNNGRU()
     mytester:assertalmosteq(checkSums.localSumdw, 5.397419E+07, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
+function cudnntest.testBiDirectionalRELURNN()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 2
+    local nbDirections = 2
+    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
+    rnn.mode = 'CUDNN_RNN_RELU'
+    rnn.numDirections = 2
+
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 1.388634E+01, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 1.288997E+01, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 1.288729E+01, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 1.279004E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 7.061081E+07, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
+function cudnntest.testBiDirectionalTANHRNN()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 2
+    local nbDirections = 2
+    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
+    rnn.mode = 'CUDNN_RNN_TANH'
+    rnn.numDirections = 2
+
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 1.388634E+01, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 1.288997E+01, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 1.288729E+01, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 1.279004E+01, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 7.061081E+07, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
+function cudnntest.testBiDirectionalLSTMRNN()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 8
+    local nbDirections = 2
+    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
+    rnn.mode = 'CUDNN_LSTM'
+    rnn.numDirections = 2
+
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 3.134097E+04, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumc, 3.845626E+00, tolerance, 'checkSum with reference for localSumc failed')
+    mytester:assertalmosteq(checkSums.localSumh, 1.922855E+00, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 4.794993E+00, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdc, 2.870925E+04, tolerance, 'checkSum with reference for localSumdc failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 2.468645E+00, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 1.121568E+08, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
+function cudnntest.testBiDirectionalGRURNN()
+    local miniBatch = 64
+    local seqLength = 20
+    local hiddenSize = 512
+    local numberOfLayers = 2
+    local numberOfLinearLayers = 6
+    local nbDirections = 2
+    local rnn = cudnn.testRNN(hiddenSize, hiddenSize, numberOfLayers)
+    rnn.bidirectional = 'CUDNN_BIDIRECTIONAL'
+    rnn.mode = 'CUDNN_GRU'
+    rnn.numDirections = 2
+
+    local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, nbDirections)
+    -- Checksums to check against are retrieved from cudnn RNN sample.
+    mytester:assertalmosteq(checkSums.localSumi, 6.555183E+04, tolerance, 'checkSum with reference for localsumi failed')
+    mytester:assertalmosteq(checkSums.localSumh, 5.830924E+00, tolerance, 'checkSum with reference for localSumh failed')
+    mytester:assertalmosteq(checkSums.localSumdi, 4.271801E+00, tolerance, 'checkSum with reference for localSumdi failed')
+    mytester:assertalmosteq(checkSums.localSumdh, 6.555744E+04, tolerance, 'checkSum with reference for localSumdh failed')
+    mytester:assertalmosteq(checkSums.localSumdw, 1.701796E+08, tolerance, 'checkSum with reference for localSumdw failed')
+end
+
 --[[
 -- Method gets Checksums of RNN to compare with ref Checksums in cudnn RNN C sample.
 -- ]]
@@ -117,69 +182,73 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
     rnn:resetWeightDescriptor()
     local input = torch.CudaTensor(seqLength, miniBatch, hiddenSize):fill(1) -- Input initialised to 1s.
 
-    -- Matrices are initialised to 1 / matrixSize, biases to 1.
-    for layer = 0, numberOfLayers - 1 do
-        for layerId = 0, numberOfLinearLayers - 1 do
-            local linLayerMatDesc = rnn:createFilterDescriptors(1)
-            local matrixPointer = ffi.new("float*[1]")
-            errcheck('cudnnGetRNNLinLayerMatrixParams',
-                cudnn.getHandle(),
-                rnn.rnnDesc[0],
-                layer,
-                rnn.xDescs,
-                rnn.wDesc[0],
-                rnn.weight:data(),
-                layerId,
-                linLayerMatDesc[0],
-                ffi.cast("void**", matrixPointer))
+    if (biDirectional) then
+        rnn.weight:fill(1 / rnn.weight:size(1))
+    else
+        -- Matrices are initialised to 1 / matrixSize, biases to 1.
+        for layer = 0, numberOfLayers - 1 do
+            for layerId = 0, numberOfLinearLayers - 1 do
+                local linLayerMatDesc = rnn:createFilterDescriptors(1)
+                local matrixPointer = ffi.new("float*[1]")
+                errcheck('cudnnGetRNNLinLayerMatrixParams',
+                    cudnn.getHandle(),
+                    rnn.rnnDesc[0],
+                    layer,
+                    rnn.xDescs,
+                    rnn.wDesc[0],
+                    rnn.weight:data(),
+                    layerId,
+                    linLayerMatDesc[0],
+                    ffi.cast("void**", matrixPointer))
 
-            local dataType = 'CUDNN_DATA_FLOAT'
-            local format = 'CUDNN_TENSOR_NCHW'
-            local nbDims = torch.IntTensor(1)
+                local dataType = 'CUDNN_DATA_FLOAT'
+                local format = 'CUDNN_TENSOR_NCHW'
+                local nbDims = torch.IntTensor(1)
 
-            local minDim = 3
-            local filterDimA = torch.ones(minDim):int()
-            errcheck('cudnnGetFilterNdDescriptor',
-                linLayerMatDesc[0],
-                minDim,
-                ffi.cast("cudnnDataType_t*", dataType),
-                ffi.cast("cudnnDataType_t*", format),
-                nbDims:data(),
-                filterDimA:data())
+                local minDim = 3
+                local filterDimA = torch.ones(minDim):int()
+                errcheck('cudnnGetFilterNdDescriptor',
+                    linLayerMatDesc[0],
+                    minDim,
+                    ffi.cast("cudnnDataType_t*", dataType),
+                    ffi.cast("cudnnDataType_t*", format),
+                    nbDims:data(),
+                    filterDimA:data())
 
-            local offset = matrixPointer[0] - rnn.weight:data()
-            local weightTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
-            weightTensor:fill(1.0 / filterDimA:prod())
+                local offset = matrixPointer[0] - rnn.weight:data()
+                local weightTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
+                weightTensor:fill(1.0 / filterDimA:prod())
 
-            local linLayerBiasDesc = rnn:createFilterDescriptors(1)
-            local biasPointer = ffi.new("float*[1]")
-            errcheck('cudnnGetRNNLinLayerBiasParams',
-                cudnn.getHandle(),
-                rnn.rnnDesc[0],
-                layer,
-                rnn.xDescs,
-                rnn.wDesc[0],
-                rnn.weight:data(),
-                layerId,
-                linLayerBiasDesc[0],
-                ffi.cast("void**", biasPointer))
+                local linLayerBiasDesc = rnn:createFilterDescriptors(1)
+                local biasPointer = ffi.new("float*[1]")
+                errcheck('cudnnGetRNNLinLayerBiasParams',
+                    cudnn.getHandle(),
+                    rnn.rnnDesc[0],
+                    layer,
+                    rnn.xDescs,
+                    rnn.wDesc[0],
+                    rnn.weight:data(),
+                    layerId,
+                    linLayerBiasDesc[0],
+                    ffi.cast("void**", biasPointer))
 
-            local dataType = 'CUDNN_DATA_FLOAT'
-            local format = 'CUDNN_TENSOR_NCHW'
-            local nbDims = torch.IntTensor(1)
-            local filterDimA = torch.ones(minDim):int()
+                local dataType = 'CUDNN_DATA_FLOAT'
+                local format = 'CUDNN_TENSOR_NCHW'
+                local nbDims = torch.IntTensor(1)
+                local filterDimA = torch.ones(minDim):int()
 
-            errcheck('cudnnGetFilterNdDescriptor',
-                linLayerBiasDesc[0],
-                minDim,
-                ffi.cast("cudnnDataType_t*", dataType),
-                ffi.cast("cudnnDataType_t*", format),
-                nbDims:data(),
-                filterDimA:data())
+                errcheck('cudnnGetFilterNdDescriptor',
+                    linLayerBiasDesc[0],
+                    minDim,
+                    ffi.cast("cudnnDataType_t*", dataType),
+                    ffi.cast("cudnnDataType_t*", format),
+                    nbDims:data(),
+                    filterDimA:data())
 
-            local offset = biasPointer[0] - rnn.weight:data()
-            local biasTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
-            biasTensor:fill(1)
+                local offset = biasPointer[0] - rnn.weight:data()
+                local biasTensor = torch.CudaTensor(rnn.weight:storage(), offset + 1, filterDimA:prod())
+                biasTensor:fill(1)
+            end
         end
     end
     -- Set hx/cx/dhy/dcy data to 1s.
