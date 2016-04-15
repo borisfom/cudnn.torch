@@ -17,7 +17,7 @@ function RNN:__init(inputSize, hiddenSize, numLayers, batchFirst)
    self.mode = 'CUDNN_RNN_RELU'
    self.dropout = 0
    self.seed = 0x01234567
-   self.batchFirst = batchFirst or false
+   self.batchFirst = batchFirst or false -- Set to true for batch x time x inputdim.
 
    self.gradInput = torch.CudaTensor()
    self.output = torch.CudaTensor()
