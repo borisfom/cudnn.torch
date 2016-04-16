@@ -41,7 +41,8 @@ cudnn.VolumetricAveragePooling(kT, kW, kH, dT, dW, dH, padT, padW, padH)
 -- Recurrent Modules
 
 -- All inputs have to be 3D. Accepts input of seqLength x batch x inputDim, or batch x seqLength x inputDim if batchFirst set to true.
-cudnn.RNN(inputDim, outputDim, numberOfLayers, [batchFirst = false])
+cudnn.RNNReLU(inputDim, outputDim, numberOfLayers, [batchFirst = false])
+cudnn.RNNTanh(inputDim, outputDim, numberOfLayers, [batchFirst = false])
 cudnn.LSTM(inputDim, outputDim, numberOfLayers, [batchFirst = false])
 cudnn.GRU(inputDim, outputDim, numberOfLayers, [batchFirst = false])
 cudnn.BLSTM(inputDim, outputDim, numberOfLayers, [batchFirst = false])
