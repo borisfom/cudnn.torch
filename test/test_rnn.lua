@@ -19,7 +19,7 @@ function cudnntest.testRNNRELU()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNNReLU(hiddenSize, hiddenSize, numberOfLayers)
     rnn.mode = 'CUDNN_RNN_RELU'
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
@@ -38,7 +38,7 @@ function cudnntest.testRNNBatchFirst()
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
     local batchFirst = true
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers, batchFirst)
+    local rnn = cudnn.RNNReLU(hiddenSize, hiddenSize, numberOfLayers, batchFirst)
     rnn.mode = 'CUDNN_RNN_RELU'
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn, batchFirst)
 
@@ -56,7 +56,7 @@ function cudnntest.testRNNTANH()
     local hiddenSize = 512
     local numberOfLayers = 2
     local numberOfLinearLayers = 2
-    local rnn = cudnn.RNN(hiddenSize, hiddenSize, numberOfLayers)
+    local rnn = cudnn.RNNTanh(hiddenSize, hiddenSize, numberOfLayers)
     rnn.mode = 'CUDNN_RNN_TANH'
     local checkSums = getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numberOfLinearLayers, rnn)
 
