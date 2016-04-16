@@ -289,60 +289,15 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
     rnn:backward(input, gradInput)
 
     -- Sum up all values for each.
-    local localSumi = 0
-    local localSumh = 0
-    local localSumc = 0
+    local localSumi = torch.sum(testOutputi)
+    local localSumh = torch.sum(rnn.hiddenOutput)
+    local localSumc = torch.sum(rnn.cellOutput)
 
-    local mLength
-    local jLength
-    if(batchFirst) then
-        mLength = miniBatch
-        jLength = seqLength
-    else
-        mLength = seqLength
-        jLength = miniBatch
-    end
+    local localSumdi = torch.sum(rnn.gradInput)
+    local localSumdh = torch.sum(rnn.gradHiddenInput)
+    local localSumdc = torch.sum(rnn.gradCellInput)
 
-    for m = 1, mLength do
-        for j = 1, jLength do
-            for i = 1, hiddenSize * biDirectionalScale do
-                localSumi = localSumi + testOutputi[m][j][i]
-            end
-        end
-    end
-
-    for m = 1, numberOfLayers * biDirectionalScale do
-        for j = 1, miniBatch do
-            for i = 1, hiddenSize do
-                localSumh = localSumh + rnn.hiddenOutput[m][j][i]
-                localSumc = localSumc + rnn.cellOutput[m][j][i]
-            end
-        end
-    end
-
-    local localSumdi = 0
-    local localSumdh = 0
-    local localSumdc = 0
-    for m = 1, mLength do
-        for j = 1, jLength do
-            for i = 1, hiddenSize do
-                localSumdi = localSumdi + rnn.gradInput[m][j][i]
-            end
-        end
-    end
-    for m = 1, numberOfLayers * biDirectionalScale do
-        for j = 1, miniBatch do
-            for i = 1, hiddenSize do
-                localSumdh = localSumdh + rnn.gradHiddenInput[m][j][i]
-                localSumdc = localSumdc + rnn.gradCellInput[m][j][i]
-            end
-        end
-    end
-
-    local localSumdw = 0
-    for m = 1, rnn.gradWeight:size(1) do
-        localSumdw = localSumdw + rnn.gradWeight[m]
-    end
+    local localSumdw = torch.sum(rnn.gradWeight)
 
     local checkSums = {
         localSumi = localSumi,
