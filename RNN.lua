@@ -33,14 +33,6 @@ function RNN:__init(inputSize, hiddenSize, numLayers, batchFirst)
    self:reset()
 end
 
-function RNN:resizeOutput(tensor)
-    return tensor:resize(self.seqLength, self.miniBatch, self.hiddenSize * self.numDirections)
-end
-
-function RNN:resizeHidden(tensor)
-    return tensor:resize(self.numLayers * self.numDirections, self.miniBatch, self.hiddenSize)
-end
-
 function RNN:reset(stdv)
    stdv = stdv or 1.0 / math.sqrt(self.hiddenSize)
 
@@ -232,6 +224,14 @@ function RNN:makeContiguous(input, gradOutput)
       gradOutput = self._gradOutput
    end
    return input, gradOutput
+end
+
+function RNN:resizeOutput(tensor)
+    return tensor:resize(self.seqLength, self.miniBatch, self.hiddenSize * self.numDirections)
+end
+
+function RNN:resizeHidden(tensor)
+    return tensor:resize(self.numLayers * self.numDirections, self.miniBatch, self.hiddenSize)
 end
 
 function RNN:updateOutput(input)
