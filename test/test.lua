@@ -11,7 +11,7 @@ local jac = nn.Jacobian
 local testparams_half = {
    test_type = 'torch.CudaHalfTensor',
    precision_forward = 2e-1,
-   precision_backward = 3,
+   precision_backward = 4,
    precision_jac = 1e-3,
    precision_io = 1e-1,
 }
@@ -1509,25 +1509,28 @@ mytester:add(cudnntest)
 
 if torch.random(1,2) == 1 then
    cudnn.benchmark = true -- run manual auto-tuner
---   cudnn.verbose = true
+   cudnn.verbose = true
 end
 
 
 for i=1,cutorch.getDeviceCount() do
+
    print('Running test on device: ' .. i)
    cutorch.setDevice(i)
 
-   print'Testing torch.CudaHalfTensor'
-   testparams = testparams_half
-   mytester:run()
+   for i=1,cutorch.getDeviceCount() do
+      print'Testing torch.CudaTensor'
+      testparams = testparams_float
+      mytester:run()
 
-   print'Testing torch.CudaTensor'
-   testparams = testparams_float
-   mytester:run()
-
-   print'Testing torch.CudaDoubleTensor'
-   testparams = testparams_double
-   mytester:run()
+      print'Testing torch.CudaHalfTensor'
+      testparams = testparams_half
+      mytester:run()
+    end
+--
+--   print'Testing torch.CudaDoubleTensor'
+--   testparams = testparams_double
+--   mytester:run()
 end
 
 os.execute('rm -f modelTemp.t7')
