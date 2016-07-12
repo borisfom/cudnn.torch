@@ -8,12 +8,12 @@ require 'cunn'
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
-local cudnntest = torch.TestSuite()
+local rnntest = torch.TestSuite()
 local mytester
 
 local tolerance = 300
 
-function cudnntest.testRNNRELU()
+function rnntest.testRNNRELU()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -31,7 +31,7 @@ function cudnntest.testRNNRELU()
     mytester:assertalmosteq(checkSums.localSumdw, 1.453750E+09, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testRNNBatchFirst()
+function rnntest.testRNNBatchFirst()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -50,7 +50,7 @@ function cudnntest.testRNNBatchFirst()
     mytester:assertalmosteq(checkSums.localSumdw, 1.453750E+09, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testRNNTANH()
+function rnntest.testRNNTANH()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -68,7 +68,7 @@ function cudnntest.testRNNTANH()
     mytester:assertalmosteq(checkSums.localSumdw, 5.012598E+07, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testRNNLSTM()
+function rnntest.testRNNLSTM()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -87,7 +87,7 @@ function cudnntest.testRNNLSTM()
     mytester:assertalmosteq(checkSums.localSumdw, 4.313461E+08, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testRNNGRU()
+function rnntest.testRNNGRU()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -103,7 +103,7 @@ function cudnntest.testRNNGRU()
     mytester:assertalmosteq(checkSums.localSumdw, 5.397419E+07, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testBiDirectionalRELURNN()
+function rnntest.testBiDirectionalRELURNN()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -125,7 +125,7 @@ function cudnntest.testBiDirectionalRELURNN()
     mytester:assertalmosteq(checkSums.localSumdw, 7.061081E+07, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testBiDirectionalTANHRNN()
+function rnntest.testBiDirectionalTANHRNN()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -147,7 +147,7 @@ function cudnntest.testBiDirectionalTANHRNN()
     mytester:assertalmosteq(checkSums.localSumdw, 7.061081E+07, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testBiDirectionalLSTMRNN()
+function rnntest.testBiDirectionalLSTMRNN()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -168,7 +168,7 @@ function cudnntest.testBiDirectionalLSTMRNN()
     mytester:assertalmosteq(checkSums.localSumdw, 1.121568E+08, tolerance, 'checkSum with reference for localSumdw failed')
 end
 
-function cudnntest.testBiDirectionalGRURNN()
+function rnntest.testBiDirectionalGRURNN()
     local miniBatch = 64
     local seqLength = 20
     local hiddenSize = 512
@@ -259,5 +259,5 @@ function getRNNCheckSums(miniBatch, seqLength, hiddenSize, numberOfLayers, numbe
 end
 
 mytester = torch.Tester()
-mytester:add(cudnntest)
+mytester:add(rnntest)
 mytester:run()
