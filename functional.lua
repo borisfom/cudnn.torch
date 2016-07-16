@@ -114,7 +114,7 @@ cudnn.functional.Convolution2D_updateOutput = function(handle, input, weight, ou
             algSearchMode, algWorkspaceLimit, algType)
 
    -- do convolution
-   errcheck('cudnnConvolutionForward', handle,
+   errcheck('cudnnConvolutionForward', cudnn.getHandle(),
             one:data(),
             iDesc[0], input:data(),
             weightDesc[0], weight:data(),
