@@ -1450,37 +1450,6 @@ function cudnntest.functional_bias2D()
    mytester:assertlt(error:abs():max(),
                      testparams.precision_backward, 'error on accGradParameters ')
 end
-
-function cudnntest.functional_convolution2d()
-    local a=cudnn.SpatialConvolution(3,16,5,5):cuda()
-    a.bias:zero();
-    local input = torch.randn(10,3,10,10):cuda()
-    a:zeroGradParameters()
-    a:forward(input);
-    local output = a.output:clone():normal()
-    local gradOutput = a.output:clone():normal()
-    local gradInput = a:backward(input, gradOutput):clone():normal()
-    local gradWeight = a.gradWeight:clone():zero()
-    cudnn.functional.Convolution2D_updateOutput(cudnn.getHandle(), input,
-                                                a.weight, output, a.dH,
-                                                a.dW, a.padH, a.padW)
-    mytester:assertlt((output - a.output):abs():max(),
-                     testparams.precision_forward, 'error on forward ')
-
-    cudnn.functional.Convolution2D_updateGradInput(cudnn.getHandle(), input,
-                                                   a.weight, output, gradOutput,
-                                                   gradInput,
-                                                   a.dH, a.dW, a.padH, a.padW)
-    mytester:assertlt((gradInput - a.gradInput):abs():max(),
-                     testparams.precision_forward, 'error on updateGradInput ')
-
-    cudnn.functional.Convolution2D_accGradParameters(cudnn.getHandle(), input,
-                                                   gradWeight, gradOutput,
-                                                   a.dH, a.dW, a.padH, a.padW)
-    mytester:assertlt((gradWeight - a.gradWeight):abs():max(),
-                     testparams.precision_forward, 'error on accGradParameters ')
-end
-
 function cudnntest.functional_maxpooling2d()
     local a=cudnn.SpatialMaxPooling(2,2,2,2):cuda()
     local input = torch.randn(10,3,10,10):cuda()
@@ -1526,7 +1495,7 @@ for i=1,cutorch.getDeviceCount() do
       print'Testing torch.CudaHalfTensor'
       testparams = testparams_half
       mytester:run()
-    end
+   end
 --
 --   print'Testing torch.CudaDoubleTensor'
 --   testparams = testparams_double
