@@ -1515,7 +1515,11 @@ end
 
 for i=1,cutorch.getDeviceCount() do
 
-   print('Running test on device: ' .. i)
+   local prop = cutorch.getDeviceProperties(i)
+
+   print('Running test on device: #' .. i .. ' : ' .. prop.name)
+
+
    cutorch.setDevice(i)
 
    for i=1,cutorch.getDeviceCount() do
@@ -1523,9 +1527,10 @@ for i=1,cutorch.getDeviceCount() do
       testparams = testparams_float
       mytester:run()
 
---      print'Testing torch.CudaHalfTensor'
---      testparams = testparams_half
---      mytester:run()
+      print'Testing torch.CudaHalfTensor'
+      testparams = testparams_half
+      mytester:run()
+
     end
 --
 --   print'Testing torch.CudaDoubleTensor'
