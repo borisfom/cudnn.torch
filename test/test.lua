@@ -1496,9 +1496,9 @@ for i=1,cutorch.getDeviceCount() do
    testparams = testparams_half
    mytester:run()
 
-#   print'Testing torch.CudaDoubleTensor'
-#   testparams = testparams_double
-#   mytester:run()
+--   print'Testing torch.CudaDoubleTensor'
+--   testparams = testparams_double
+--   mytester:run()
 end
 
 os.execute('rm -f modelTemp.t7')
