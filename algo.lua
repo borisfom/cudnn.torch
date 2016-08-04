@@ -3,17 +3,18 @@ local errcheck = cudnn.errcheck
 
 local algo = {}
 local autotunerCache = {}
-autotunerCache[1] = {} -- forward
-autotunerCache[2] = {} -- backwardFilter
-autotunerCache[3] = {} -- backwardData
+autotunerCache['cudnnFindConvolutionForwardAlgorithmEx'] = {}
+autotunerCache['cudnnFindConvolutionBackwardFilterAlgorithmEx'] = {}
+autotunerCache['cudnnFindConvolutionBackwardDataAlgorithmEx'] = {}
 
 local function setupAlgo(self, algo_t, perf_t, findAPI, getAPI, wsAPI, algSearchMode, params)
-
         local algType = ffi.new(algo_t, 1)
+        self.extraBuffer = self.extraBuffer or cudnn.getSharedWorkspace()
 
-        if cudnn.benchmark or cudnn.fastest then -- the manual auto-tuner is run
-            if autotunerCache[1][self.autotunerHash] then
-                algType[0] = autotunerCache[1][self.autotunerHash]
+        if false then -- cudnn.benchmark or cudnn.fastest then -- the manual auto-tuner is run
+           local cachedAlgo = autotunerCache[findAPI][self.autotunerHash];
+            if cachedAlgo then
+               algType[0] = cachedAlgo
                 if cudnn.verbose then
                    print('\n', findAPI, ' using cached algo = ' , algType[0] , ' for: ', self.autotunerHash)
                 end
@@ -22,10 +23,10 @@ local function setupAlgo(self, algo_t, perf_t, findAPI, getAPI, wsAPI, algSearch
                 local intt = torch.IntTensor(1)
                 errcheck(findAPI,
                          cudnn.getHandle(),
-                         params[1], params[2], params[3], params[4],
-                         1, intt:data(), perfResults)
+                         params[1], params[2], params[3], params[4], params[5], params[6], params[7],
+                         1, intt:data(), perfResults, self.extraBuffer:data(), self.extraBuffer:nElement() * self.extraBuffer.elementSize())
                 algType[0] = perfResults[0].algo
-                autotunerCache[1][self.autotunerHash] = perfResults[0].algo
+                autotunerCache[findAPI][self.autotunerHash] = perfResults[0].algo
                 if cudnn.verbose then
                     print(string.format(
                               "\n" .. findAPI .. " Time: %3.5f Memory: %8d Algorithm: %d"
@@ -42,7 +43,7 @@ local function setupAlgo(self, algo_t, perf_t, findAPI, getAPI, wsAPI, algSearch
 
             errcheck(getAPI,
                      cudnn.getHandle(),
-                     params[1], params[2], params[3], params[4],
+                     params[1], params[3], params[5], params[6],
                      algSearchMode, algWorkspaceLimit, algType)
                 if cudnn.verbose then
                    print(string.format(
@@ -51,40 +52,34 @@ local function setupAlgo(self, algo_t, perf_t, findAPI, getAPI, wsAPI, algSearch
                      tonumber(algType[0])))
                 end
         end
-        local bufSize = torch.LongTensor(1)
-        errcheck(wsAPI,
-                 cudnn.getHandle(),
-                 params[1], params[2], params[3], params[4],
-                 algType[0], bufSize:data())
 
-        self.extraBuffer = self.extraBuffer or cudnn.getSharedWorkspace()
-        local extraBufferSizeInBytes = self.extraBuffer:nElement() * self.extraBuffer.elementSize()
 
-       if cudnn.verbose then
-           print(string.format(
-                    "\n" .. wsAPI .. " returned bufSize: %d, current extraBufferSizeInBytes: %d, %d elements",
-                    tonumber(bufSize[1]), tonumber(extraBufferSizeInBytes), tonumber(self.extraBuffer:nElement())))
-        end
+        if algSearchMode ~= CUDNN_CONVOLUTION_BWD_FILTER_NO_WORKSPACE and algSearchMode ~= CUDNN_CONVOLUTION_BWD_DATA_NO_WORKSPACE then
+           local bufSize = torch.LongTensor(1)
+           errcheck(wsAPI,
+                    cudnn.getHandle(),
+                    params[1], params[3], params[5], params[6],
+                    algType[0], bufSize:data())
 
-        if extraBufferSizeInBytes < bufSize[1] then
-           self.extraBuffer:resize(math.ceil(bufSize[1]/self.extraBuffer.elementSize()))
+           local extraBufferSizeInBytes = self.extraBuffer:nElement() * self.extraBuffer.elementSize()
+
+           if cudnn.verbose then
+              print(string.format(
+                       "\n" .. wsAPI .. " returned bufSize: %d, current extraBufferSizeInBytes: %d, %d elements",
+                       tonumber(bufSize[1]), tonumber(extraBufferSizeInBytes), tonumber(self.extraBuffer:nElement())))
+           end
+
+           if extraBufferSizeInBytes < bufSize[1] then
+              self.extraBuffer:resize(math.ceil(bufSize[1]/self.extraBuffer.elementSize()))
+           end
         end
         return algType[0]
 end
 
 function algo.prepareHash(self, input_slice, output_slice)
    local function shape(x)
-      local sz = x:size()
-      local str = ''
-      for i=1,sz:size() do
-         str = str .. sz[i] .. 'x'
-      end
-      if #str > 0 then
-         str = str:sub(1, #str-1)
-      end
-      return str
+      return table.concat(x:size():totable(),'x')
    end
-
    self.autotunerHash = shape(self.weight) .. ';'
       .. shape(input_slice) .. ';'
       .. shape(output_slice)
@@ -92,6 +87,8 @@ function algo.prepareHash(self, input_slice, output_slice)
    self.fwdAlgType = nil
    self.bwdDataAlgType = nil
    self.bwdFilterAlgType = nil
+   self.input_slice = input_slice
+   self.output_slice = output_slice
 end
 
 function algo.setupForwardAlgorithm(self, params)
@@ -102,10 +99,10 @@ function algo.setupForwardAlgorithm(self, params)
       algSearchMode = 'CUDNN_CONVOLUTION_FWD_SPECIFY_WORKSPACE_LIMIT'
    end
 
-   params = params or { self.iDesc[0], self.weightDesc[0], self.convDesc[0], self.oDesc[0] }
+   params = params or { self.iDesc[0], self.input_slice:data(), self.weightDesc[0], self.weight:data(), self.convDesc[0], self.oDesc[0], self.output_slice:data() }
    self.fwdAlgType = self.fmode or
       setupAlgo(self,"cudnnConvolutionFwdAlgo_t[?]", "cudnnConvolutionFwdAlgoPerf_t[?]",
-                'cudnnFindConvolutionForwardAlgorithm', 'cudnnGetConvolutionForwardAlgorithm',
+                'cudnnFindConvolutionForwardAlgorithmEx', 'cudnnGetConvolutionForwardAlgorithm',
                 'cudnnGetConvolutionForwardWorkspaceSize', algSearchMode, params)
 end
 
@@ -114,10 +111,10 @@ function algo.setupBackwardFilterAlgorithm(self, params)
    if self.fastest_mode  or cudnn.fastest == true then
       algSearchMode = 'CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST'
    end
-   params = params or { self.iDesc[0], self.oDesc[0], self.convDesc[0], self.weightDesc[0] }
+   params = params or { self.iDesc[0], self.input_slice:data(), self.oDesc[0], self.output_slice:data(), self.convDesc[0], self.weightDesc[0], self.weight:data() }
    self.bwdFilterAlgType = self.bwmode or
       setupAlgo(self,"cudnnConvolutionBwdFilterAlgo_t[?]", "cudnnConvolutionBwdFilterAlgoPerf_t[?]",
-                'cudnnFindConvolutionBackwardFilterAlgorithm', 'cudnnGetConvolutionBackwardFilterAlgorithm',
+                'cudnnFindConvolutionBackwardFilterAlgorithmEx', 'cudnnGetConvolutionBackwardFilterAlgorithm',
                 'cudnnGetConvolutionBackwardFilterWorkspaceSize', algSearchMode,
                 params)
 end
@@ -127,10 +124,10 @@ function algo.setupBackwardDataAlgorithm(self, params)
    if self.fastest_mode  or cudnn.fastest == true then
       algSearchMode = 'CUDNN_CONVOLUTION_BWD_DATA_PREFER_FASTEST'
    end
-   params =  params or { self.weightDesc[0], self.oDesc[0], self.convDesc[0], self.iDesc[0] }
+   params =  params or { self.weightDesc[0], self.weight:data(), self.oDesc[0], self.output_slice:data(), self.convDesc[0], self.iDesc[0], self.input_slice:data() }
    self.bwdDataAlgType = self.bdmode or
       setupAlgo(self,"cudnnConvolutionBwdDataAlgo_t[?]", "cudnnConvolutionBwdDataAlgoPerf_t[?]",
-                'cudnnFindConvolutionBackwardDataAlgorithm', 'cudnnGetConvolutionBackwardDataAlgorithm',
+                'cudnnFindConvolutionBackwardDataAlgorithmEx', 'cudnnGetConvolutionBackwardDataAlgorithm',
                 'cudnnGetConvolutionBackwardDataWorkspaceSize', algSearchMode, params)
 end
 

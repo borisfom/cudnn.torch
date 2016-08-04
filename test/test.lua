@@ -33,7 +33,7 @@ local testparams_double = {
    precision_io = 1e-5,
 }
 
-local testparams_double = {
+local testparams_double_real = {
    test_type = 'torch.CudaDoubleTensor',
    precision_forward = 1e-4,
    precision_backward = 2e-2,
@@ -185,8 +185,11 @@ function cudnntest.SpatialConvolution_forward_single()
      cutorch.synchronize()
      mytester:asserteq(rescuda:dim(), 3, 'error in dimension')
      local error = rescuda:float() - groundtruth:float()
+--     if cudnn.verbose and error:abs():max() > tonumber(testparams.precision_forward) then
+--        print('\n==== rescuda:float():\n', rescuda:float(),  '\n==== groundtruth:float():\n', groundtruth:float())
+--     end
      mytester:assertlt(error:abs():max(), testparams.precision_forward,
-                       'error on state (forward) ')
+                       'error on state (forward)')
 
      -- IO
      local ferr,berr = jac.testIO(gconv, cast(input))
@@ -1515,10 +1518,10 @@ math.randomseed(os.time())
 mytester = torch.Tester()
 mytester:add(cudnntest)
 
--- if torch.random(1,2) == 1 then
---   cudnn.benchmark = true -- run manual auto-tuner
-   cudnn.verbose = true
---end
+if torch.random(1,2) == 1 then
+    cudnn.benchmark = true -- run manual auto-tuner
+--    cudnn.verbose = true
+end
 
 
 for i=1,cutorch.getDeviceCount() do
@@ -1527,11 +1530,6 @@ for i=1,cutorch.getDeviceCount() do
    print('Running test on device: #' .. i .. ' : ' .. prop.name)
 
    cutorch.setDevice(i)
---   double tensor may be broken
-   print'Testing torch.CudaDoubleTensor'
-   torch.setdefaulttensortype('torch.DoubleTensor')
-   testparams = testparams_double
-   mytester:run()
 
    print'Testing torch.CudaTensor'
    testparams = testparams_float
@@ -1539,9 +1537,17 @@ for i=1,cutorch.getDeviceCount() do
 
 
 --   half tensor is broken on Pascal
-   print'Testing torch.CudaHalfTensor'
+   print'Testing torch.CudaHalfTensor: note there may be errors on 6.x (Pascal) cards'
    testparams = testparams_half
    mytester:run()
+
+--   double tensor may be broken
+   print'Testing torch.CudaDoubleTensor'
+   torch.setdefaulttensortype('torch.DoubleTensor')
+   testparams = testparams_double
+   mytester:run()
+
 end
+
 
 os.execute('rm -f modelTemp.t7')

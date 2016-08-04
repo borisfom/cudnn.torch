@@ -9,42 +9,30 @@ autotunerCache[1] = {} -- forward
 autotunerCache[2] = {} -- backwardFilter
 autotunerCache[3] = {} -- backwardData
 
-local SpatialConvolution = cudnn.SpatialConvolution
+local Convolution = cudnn.SpatialConvolution
 
--- if you change the configuration of the module manually, call this
 function SpatialFullConvolution:resetWeightDescriptors()
-    self.weightDesc = SpatialConvolution.createWeightDescriptors(self)
-    local desc = torch.IntTensor({self.nInputPlane,
-                                  self.nOutputPlane,
-                                  self.kH, self.kW})
-    errcheck('cudnnSetFilterNdDescriptor', self.weightDesc[0],
-             cudnn.typemap[torch.typename(self.weight)], 'CUDNN_TENSOR_NCHW', 4,
-             desc:data());
+   return Convolution.resetWeightDescriptors(self)
 end
 
 function SpatialFullConvolution:fastest(mode)
-   return SpatialConvolution.fastest(self)
+   return Convolution.fastest(self, mode)
 end
 
 function SpatialFullConvolution:setMode(fmode, bdmode, bwmode)
-   return SpatialConvolution.setMode(self, fmode, bdmode, bwmode)
+   return Convolution.setMode(self, fmode, bdmode, bwmode)
 end
 
 function SpatialFullConvolution:resetMode()
-   return SpatialConvolution.resetMode(self)
+   return Convolution.resetMode(self)
 end
 
 function SpatialFullConvolution:noBias()
-   return SpatialConvolution.noBias(self)
+   return Convolution.noBias(self)
 end
 
 function SpatialFullConvolution:createIODescriptors(input)
-    local batch = true
-    if input:dim() == 3 then
-        input = input:view(1, input:size(1), input:size(2), input:size(3))
-        batch = false
-    end
-    if SpatialConvolution.checkInputChanged(self, input) then
+    if Convolution.checkInputChanged(self, input) then
         -- create input descriptor
         local input_slice = input[{{},{1,self.nInputPlane},{},{}}]
         self.iDesc = cudnn.toDescriptor(input_slice)
@@ -82,11 +70,10 @@ local one = torch.FloatTensor({1});
 local zero = torch.FloatTensor({0});
 
 function SpatialFullConvolution:updateOutput(input)
-    if not self.weightDesc then self:resetWeightDescriptors() end
     self:createIODescriptors(input)
     if not self.bwdDataAlgType then
-       algo.setupBackwardDataAlgorithm(self, {self.weightDesc[0], self.iDesc[0],
-                                              self.convDesc[0], self.oDesc[0]})
+       algo.setupBackwardDataAlgorithm(self, {self.weightDesc[0], self.weight:data(), self.iDesc[0],self.input_slice:data(),
+                                              self.convDesc[0], self.oDesc[0], self.output_slice:data()})
     end
 
     -- Because SpatialFullConvolution is performing the adjoint of the forward
@@ -116,11 +103,10 @@ function SpatialFullConvolution:updateGradInput(input, gradOutput)
 
     assert(gradOutput:dim() == 3 or gradOutput:dim() == 4, 'gradOutput has to be 3D or 4D');
     assert(gradOutput:isContiguous(), 'gradOutput has to be contiguous')
-    if not self.weightDesc then self:resetWeightDescriptors() end
     self:createIODescriptors(input)
     if not self.fwdDataAlgType then
-       algo.setupForwardAlgorithm(self, {self.oDesc[0], self.weightDesc[0],
-                                         self.convDesc[0], self.iDesc[0]})
+       algo.setupForwardAlgorithm(self, {self.oDesc[0], self.output_slice:data(), self.weightDesc[0], self.weight:data(),
+                                         self.convDesc[0], self.iDesc[0], self.input_slice:data() })
     end
 
     errcheck('cudnnConvolutionForward', cudnn.getHandle(),
@@ -144,11 +130,10 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
 
     assert(gradOutput:dim() == 3 or gradOutput:dim() == 4, 'gradOutput has to be 3D or 4D');
     assert(gradOutput:isContiguous(), 'gradOutput has to be contiguous')
-    if not self.weightDesc then self:resetWeightDescriptors() end
     self:createIODescriptors(input)
     if not self.bwdFilterAlgType then
-       algo.setupBackwardFilterAlgorithm(self, {self.oDesc[0], self.iDesc[0],
-                                                self.convDesc[0], self.weightDesc[0]})
+       algo.setupBackwardFilterAlgorithm(self, {self.oDesc[0], self.output_slice:data(), self.iDesc[0], self.input_slice:data(),
+                                                self.convDesc[0], self.weightDesc[0], self.weight:data()})
     end
 
     -- gradBias
@@ -173,29 +158,13 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
 end
 
 function SpatialFullConvolution:clearDesc()
-    self.weightDesc = nil
-    self.biasDesc = nil
-    self.convDesc = nil
-    self.iDesc = nil
-    self.oDesc = nil
-    self.oDescForBias = nil
-    self.algType = nil
-    self.fwdAlgType = nil
-    self.bwdDataAlgType = nil
-    self.bwdFilterAlgType = nil
-    self.extraBuffer = nil
+   return Convolution.clearDesc(self)
 end
 
 function SpatialFullConvolution:write(f)
-    self:clearDesc()
-    local var = {}
-    for k,v in pairs(self) do
-        var[k] = v
-    end
-    f:writeObject(var)
+   return Convolution.write(self, f)
 end
 
 function SpatialFullConvolution:clearState()
-   self:clearDesc()
-   return nn.Module.clearState(self)
+   return Convolution.clearState(f)
 end
