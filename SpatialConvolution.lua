@@ -40,13 +40,12 @@ end
 function SpatialConvolution:resetWeightDescriptors(desc)
     -- for compatibility
     self.groups = self.groups or 1
-    self.nDim = self.nDim or 4
     self.weightDesc = SpatialConvolution.createWeightDescriptors(self)
     desc = desc or torch.IntTensor({self.nOutputPlane/self.groups,
                                     self.nInputPlane/self.groups,
                                     self.kH, self.kW})
     errcheck('cudnnSetFilterNdDescriptor', self.weightDesc[0],
-             cudnn.typemap[torch.typename(self.weight)], 'CUDNN_TENSOR_NCHW', self.nDim,
+             cudnn.typemap[torch.typename(self.weight)], 'CUDNN_TENSOR_NCHW', desc:nElement(),
              desc:data());
     return self
 end
@@ -131,12 +130,10 @@ function SpatialConvolution:createIODescriptors(input)
 
 
         -- get output shape, resize output
-        self.nDim = 4
-        local oSize = torch.IntTensor(self.nDim)
-        local oSizeD = oSize:data()
+        local oSize = torch.IntTensor(4)
         errcheck('cudnnGetConvolutionNdForwardOutputDim',
                  self.convDesc[0], self.iDesc[0],
-                 self.weightDesc[0], self.nDim, oSizeD)
+                 self.weightDesc[0], 4, oSize:data())
         oSize[2] = oSize[2] * self.groups
         self.output:resize(oSize:long():storage())
         self.oSize = self.output:size()
@@ -169,7 +166,7 @@ end
 local one = torch.FloatTensor({1});
 local zero = torch.FloatTensor({0});
 
-function SpatialConvolution:makeContiguous(input, gradOutput)
+local function makeContiguous(self, input, gradOutput)
    if not input:isContiguous() then
       self._input = self._input or input.new()
       self._input:typeAs(input):resizeAs(input):copy(input)
@@ -184,7 +181,7 @@ function SpatialConvolution:makeContiguous(input, gradOutput)
 end
 
 function SpatialConvolution:updateOutput(input)
-    input = SpatialConvolution.makeContiguous(self, input)
+    input = makeContiguous(self, input)
     self:createIODescriptors(input)
     if not self.fwdAlgType then
        algo.setupForwardAlgorithm(self)
@@ -213,9 +210,9 @@ end
 function SpatialConvolution:updateGradInput(input, gradOutput)
     if not self.gradInput then return end
     self.gradInput:resizeAs(input)
-    input, gradOutput = SpatialConvolution.makeContiguous(self, input, gradOutput)
+    input, gradOutput = makeContiguous(self, input, gradOutput)
     self:createIODescriptors(input)
-    assert(gradOutput:dim() == input:dim()-1 or gradOutput:dim() == input:dim(), 'gradOutput has to be input:dim() or input:dim()-1');
+--    assert(gradOutput:dim() == input:dim()-1 or gradOutput:dim() == input:dim(), 'gradOutput has to be input:dim() or input:dim()-1');
 
     if not self.bwdDataAlgType then
        algo.setupBackwardDataAlgorithm(self)

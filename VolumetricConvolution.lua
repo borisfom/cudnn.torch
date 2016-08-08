@@ -45,30 +45,24 @@ function VolumetricConvolution:createIODescriptors(input)
                   stride:data(), upscale:data(), 'CUDNN_CROSS_CORRELATION',
                   cudnn.configmap(torch.type(self.weight)));
          -- create output descriptor and resize output
-         self.nDim = 5
+
          local oSize = torch.IntTensor(5)
-         local oSizeD = oSize:data()
          errcheck('cudnnGetConvolutionNdForwardOutputDim',
                   self.convDesc[0], self.iDesc[0],
-                  self.weightDesc[0], self.nDim, oSizeD)
+                  self.weightDesc[0], 5, oSize:data())
          self.output:resize(oSize:long():storage())
          -- create descriptor for output
          self.oDesc = cudnn.toDescriptor(self.output)
-         self.oDescBias = cudnn.toDescriptor(
+         self.oDescForBias = cudnn.toDescriptor(
             self.output:view(self.output:size(1),
                              self.output:size(2),
                              self.output:size(3)*self.output:size(4),
                              self.output:size(5)))
 
-         if not batch then
-            self.output = self.output:view(self.output:size(2),
-                                           self.output:size(3),
-                                           self.output:size(4),
-                                           self.output:size(5))
-
+         self.input_offset = 0
+         self.output_offset = 0
+         self.weight_offset = 0
          algo.prepareHash(self, input, self.output)
-
-         end
    end
 end
 

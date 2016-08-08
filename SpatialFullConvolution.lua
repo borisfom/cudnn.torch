@@ -12,7 +12,9 @@ autotunerCache[3] = {} -- backwardData
 local Convolution = cudnn.SpatialConvolution
 
 function SpatialFullConvolution:resetWeightDescriptors()
-   return Convolution.resetWeightDescriptors(self)
+   return Convolution.resetWeightDescriptors(self, torch.IntTensor({self.nInputPlane,
+                                                                    self.nOutputPlane,
+                                                                    self.kH, self.kW}))
 end
 
 function SpatialFullConvolution:fastest(mode)
@@ -32,6 +34,14 @@ function SpatialFullConvolution:noBias()
 end
 
 function SpatialFullConvolution:createIODescriptors(input)
+    local batch = true
+    if input:dim() == 3 then
+        input = input:view(1, input:size(1), input:size(2), input:size(3))
+        batch = false
+    end
+    assert(input:dim() == 4 and input:isContiguous());
+    self.iSize = self.iSize or torch.LongStorage(4):fill(0)
+
     if Convolution.checkInputChanged(self, input) then
         -- create input descriptor
         local input_slice = input[{{},{1,self.nInputPlane},{},{}}]
@@ -61,8 +71,17 @@ function SpatialFullConvolution:createIODescriptors(input)
         self.oDesc = cudnn.toDescriptor(output_slice)
         self.oDescForBias = cudnn.toDescriptor(self.output)
 
+        self.input_offset = 0
+        self.output_offset = 0
+        self.weight_offset = 0
+
         algo.prepareHash(self, input_slice, output_slice)
 
+        if not batch then
+            self.output = self.output:view(self.output:size(2),
+                                           self.output:size(3),
+                                           self.output:size(4))
+        end
     end
 end
 
@@ -155,7 +174,7 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
              self.convDesc[0],
              self.bwdFilterAlgType,
              self.extraBuffer:data(), self.extraBuffer:nElement() * self.extraBuffer.elementSize(),
-             cudnn.scalar(input, 0),
+             cudnn.scalar(input, 1),
              self.weightDesc[0], self.gradWeight:data())
 end
 
@@ -164,9 +183,21 @@ function SpatialFullConvolution:clearDesc()
 end
 
 function SpatialFullConvolution:write(f)
-   return Convolution.write(self, f)
+    self:clearDesc()
+    local var = {}
+    for k,v in pairs(self) do
+        var[k] = v
+    end
+    f:writeObject(var)
 end
 
 function SpatialFullConvolution:clearState()
-   return Convolution.clearState(f)
+   self:clearDesc()
+   return nn.Module.clearState(self)
+end
+
+function SpatialFullConvolution:read(file, version)
+   parent.read(self, file)
+   self.adjW = self.adjW or 0
+   self.adjH = self.adjH or 0
 end
