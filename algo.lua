@@ -1,7 +1,7 @@
 local ffi = require 'ffi'
 local errcheck = cudnn.errcheck
 
-local algos = {}
+local algo = {}
 local autotunerCache = {}
 autotunerCache['cudnnFindConvolutionForwardAlgorithm'] = {}
 autotunerCache['cudnnFindConvolutionBackwardFilterAlgorithm'] = {}
