@@ -1,8 +1,8 @@
 local VolumetricConvolution, parent
    = torch.class('cudnn.VolumetricConvolution', 'nn.VolumetricConvolution')
 local ffi = require 'ffi'
-local errcheck = cudnn.errcheck
 local algo = require 'cudnn.algo'
+local errcheck = algo.errcheck
 
 local Convolution = cudnn.SpatialConvolution
 
@@ -40,14 +40,14 @@ function VolumetricConvolution:createIODescriptors(input)
          local pad = torch.IntTensor({self.padT, self.padH, self.padW})
          local stride = torch.IntTensor({self.dT, self.dH, self.dW})
          local upscale = torch.IntTensor({1,1,1})
-         errcheck('cudnnSetConvolutionNdDescriptor', self.convDesc[0],
+         errcheck(self,'cudnnSetConvolutionNdDescriptor', self.convDesc[0],
                   3, pad:data(),
                   stride:data(), upscale:data(), 'CUDNN_CROSS_CORRELATION',
                   cudnn.configmap(torch.type(self.weight)));
          -- create output descriptor and resize output
 
          local oSize = torch.IntTensor(5)
-         errcheck('cudnnGetConvolutionNdForwardOutputDim',
+         errcheck(self,'cudnnGetConvolutionNdForwardOutputDim',
                   self.convDesc[0], self.iDesc[0],
                   self.weightDesc[0], 5, oSize:data())
          self.output:resize(oSize:long():storage())

@@ -1,30 +1,48 @@
 local ffi = require 'ffi'
-local errcheck = cudnn.errcheck
 
 local algo = {}
 
-local findNoExAlgos = {'cudnnFindConvolutionForwardAlgorithm', 'cudnnFindConvolutionBackwardFilterAlgorithm', 'cudnnFindConvolutionBackwardDataAlgorithm'}
-local findExAlgos = {'cudnnFindConvolutionForwardAlgorithmEx', 'cudnnFindConvolutionBackwardFilterAlgorithmEx', 'cudnnFindConvolutionBackwardDataAlgorithmEx'}
+algo.findNoExAlgos = {'cudnnFindConvolutionForwardAlgorithm', 'cudnnFindConvolutionBackwardFilterAlgorithm', 'cudnnFindConvolutionBackwardDataAlgorithm'}
+algo.findExAlgos = {'cudnnFindConvolutionForwardAlgorithmEx', 'cudnnFindConvolutionBackwardFilterAlgorithmEx', 'cudnnFindConvolutionBackwardDataAlgorithmEx'}
 
-local autotunerCache = {{}, {}, {}}
-local findAlgos = nil
+algo.autotunerCache = {{}, {}, {}}
+algo.findAlgos = nil
+
+local function call(self, f, ...)
+   local status = cudnn.call(f, ...)
+   if cudnn.verbose and status ~= ffi.C.CUDNN_STATUS_SUCCESS then
+      print(f .. " failed for sizes: " .. self.autotunerHash)
+   end
+   return status
+end
+algo.call = call
+
+local function errcheck(self, f, ...)
+   local status = call(self, f, ...)
+   if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
+      local str = ffi.string(cudnn.C.cudnnGetErrorString(status))
+      error('Error in CuDNN: ' .. str .. ' ('..f..')')
+      return false
+   end
+   return true
+end
+algo.errcheck = errcheck
+
+local function initCache(useEx)
+   if useEx then
+      algo.findAlgos = algo.findExAlgos
+   else
+      algo.findAlgos = algo.findNoExAlgos
+   end
+end
 
 local function setupAlgo(self, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSearchMode, params)
-
-        local function initCache(useEx)
-           if useEx then
-              findAlgos = findExAlgos
-           else
-              findAlgos = findNoExAlgos
-           end
-        end
-
         -- recheck if cudnn.useFindEx was reset
         initCache(cudnn.useFindEx)
-        local findAPI = findAlgos[findAPI_idx]
+        local findAPI = algo.findAlgos[findAPI_idx]
         self.extraBuffer = self.extraBuffer or cudnn.getSharedWorkspace()
         local extraBufferSizeInBytes = self.extraBuffer:nElement() * self.extraBuffer.elementSize()
-        local cachedAlgo = autotunerCache[findAPI_idx][self.autotunerHash]
+        local cachedAlgo = algo.autotunerCache[findAPI_idx][self.autotunerHash]
         local cacheHit = '[found in cache]'
         if not cachedAlgo then
            cacheHit = ''
@@ -32,36 +50,37 @@ local function setupAlgo(self, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
            local perfResults = ffi.new(perf_t, 1)
            if cudnn.benchmark or cudnn.fastest then -- the manual auto-tuner is run
               local intt = torch.IntTensor(1)
+              local status
               if cudnn.useFindEx then
-                 errcheck(findAPI,
-                          cudnn.getHandle(),
-                          params[1], params[2], params[3], params[4], params[5], params[6], params[7],
-                          1, intt:data(), perfResults, self.extraBuffer:data(), self.extraBuffer:nElement() * self.extraBuffer.elementSize())
+                 status = algo.call(self, findAPI,
+                                     cudnn.getHandle(),
+                                     params[1], params[2], params[3], params[4], params[5], params[6], params[7],
+                                     1, intt:data(), perfResults, self.extraBuffer:data(), self.extraBuffer:nElement() * self.extraBuffer.elementSize())
 
               else
-                 errcheck(findAPI,
+                 status = algo.call(self, findAPI,
                           cudnn.getHandle(),
                           params[1], params[3], params[5], params[6],
                           1, intt:data(), perfResults)
               end
 
-              if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
+              if status == ffi.C.CUDNN_STATUS_SUCCESS then
+                 cachedAlgo.algo = tonumber(perfResults[0].algo)
+                 cachedAlgo.memory = tonumber(perfResults[0].memory)
+                 cachedAlgo.time = tonumber(perfResults[0].time)
+                 cachedAlgo.status = tonumber(perfResults[0].status)
+              else
                  cachedAlgo.algo =0
                  cachedAlgo.memory = 0
                  cachedAlgo.time = 0
-              else
-                 cachedAlgo.algo = perfResults[0].algo
-                 cachedAlgo.memory = perfResults[0].memory
-                 cachedAlgo.time = perfResults[0].time
+                 cachedAlgo.status = tonumber(status)
               end
-              cachedAlgo.status = perfResults[0].status
-
               if cudnn.verbose then
                  print(string.format(
                           "\n" .. findAPI .. " Time: %3.5f Memory: %8d Algorithm: %d(out of %d, status: %d)"
                              .. " hash: %45s",
-                          cachedAlgo.time, tonumber(cachedAlgo.memory),
-                          tonumber(cachedAlgo.algo), intt[1], tonumber(cachedAlgo.status), self.autotunerHash ))
+                          cachedAlgo.time, cachedAlgo.memory,
+                          cachedAlgo.algo, intt[1], cachedAlgo.status, self.autotunerHash ))
 
               end
            else
@@ -69,10 +88,10 @@ local function setupAlgo(self, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
               local algType = ffi.new(algo_t, 1)
               local algWorkspaceLimit = self.workspace_limit
                  or (self.nInputPlane * self.kH * self.kW * self.weight.elementSize())
-              local status = cudnn.call(getAPI,
-                                        cudnn.getHandle(),
-                                        params[1], params[3], params[5], params[6],
-                                        algSearchMode, algWorkspaceLimit, algType)
+              local status = algo.call(self, getAPI,
+                                       cudnn.getHandle(),
+                                       params[1], params[3], params[5], params[6],
+                                       algSearchMode, algWorkspaceLimit, algType)
 
 
               if cudnn.verbose then
@@ -87,12 +106,12 @@ local function setupAlgo(self, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
                  cachedAlgo.algo =0
                  cachedAlgo.memory = 0
               else
-                 cachedAlgo.algo = algType[0]
+                 cachedAlgo.algo = tonumber(algType[0])
                  local bufSize = torch.LongTensor(1)
-                 status = cudnn.call(wsAPI,
-                                     cudnn.getHandle(),
-                                     params[1], params[3], params[5], params[6],
-                                     algType[0], bufSize:data())
+                 status = algo.call(self, wsAPI,
+                                    cudnn.getHandle(),
+                                    params[1], params[3], params[5], params[6],
+                                    algType[0], bufSize:data())
                  if cudnn.verbose then
                     print(string.format(
                              "\n" .. wsAPI  .. ": bufSize: %d, current ws: %d, status: %d",
@@ -101,16 +120,11 @@ local function setupAlgo(self, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
                  if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
                     cachedAlgo.memory = 0
                  else
-                    cachedAlgo.memory = bufSize[1]
+                    cachedAlgo.memory = tonumber(bufSize[1])
                  end
               end
            end
-           cachedAlgo.status = perfResults[0].status
-
-           autotunerCache[findAPI_idx][self.autotunerHash] = {}
-           local cachedAlgoRef = autotunerCache[findAPI_idx][self.autotunerHash]
-           cachedAlgoRef.algo = cachedAlgo.algo
-           cachedAlgoRef.memory = cachedAlgo.memory
+           algo.autotunerCache[findAPI_idx][self.autotunerHash] = cachedAlgo
         end
 
         if extraBufferSizeInBytes < cachedAlgo.memory then

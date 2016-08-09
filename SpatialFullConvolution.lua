@@ -1,13 +1,8 @@
 local SpatialFullConvolution, parent =
     torch.class('cudnn.SpatialFullConvolution', 'nn.SpatialFullConvolution')
 local ffi = require 'ffi'
-local errcheck = cudnn.errcheck
 local algo = require 'cudnn.algo'
-
-local autotunerCache = {}
-autotunerCache[1] = {} -- forward
-autotunerCache[2] = {} -- backwardFilter
-autotunerCache[3] = {} -- backwardData
+local errcheck = algo.errcheck
 
 local Convolution = cudnn.SpatialConvolution
 
@@ -53,7 +48,7 @@ function SpatialFullConvolution:createIODescriptors(input)
         local pad = torch.IntTensor({self.padH, self.padW})
         local stride = torch.IntTensor({self.dH, self.dW})
         local upscale = torch.IntTensor({1,1})
-        errcheck('cudnnSetConvolutionNdDescriptor', self.convDesc[0],
+        errcheck(self,'cudnnSetConvolutionNdDescriptor', self.convDesc[0],
                  2, pad:data(),
                  stride:data(), upscale:data(), 'CUDNN_CROSS_CORRELATION',
                  cudnn.configmap(torch.type(self.weight)));
@@ -97,7 +92,7 @@ function SpatialFullConvolution:updateOutput(input)
 
     -- Because SpatialFullConvolution is performing the adjoint of the forward
     -- convolution operator, we need to swap the forward and backward passes.
-    errcheck('cudnnConvolutionBackwardData', cudnn.getHandle(),
+    errcheck(self,'cudnnConvolutionBackwardData', cudnn.getHandle(),
              cudnn.scalar(input, 1),
              self.weightDesc[0], self.weight:data(),
              self.iDesc[0], input:data(),
@@ -108,7 +103,7 @@ function SpatialFullConvolution:updateOutput(input)
 
     -- add bias
     if self.bias then
-        errcheck('cudnnAddTensor', cudnn.getHandle(),
+        errcheck(self,'cudnnAddTensor', cudnn.getHandle(),
                  cudnn.scalar(input, 1), self.biasDesc[0], self.bias:data(),
                  cudnn.scalar(input, 1), self.oDescForBias[0], self.output:data())
     end
@@ -128,7 +123,7 @@ function SpatialFullConvolution:updateGradInput(input, gradOutput)
                                          self.convDesc[0], self.iDesc[0], self.input_slice:data() })
     end
 
-    errcheck('cudnnConvolutionForward', cudnn.getHandle(),
+    errcheck(self,'cudnnConvolutionForward', cudnn.getHandle(),
              cudnn.scalar(input, 1),
              self.oDesc[0], gradOutput:data(),
              self.weightDesc[0], self.weight:data(),
@@ -159,7 +154,7 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
 
     -- gradBias
     if self.bias then
-        errcheck('cudnnConvolutionBackwardBias', cudnn.getHandle(),
+        errcheck(self,'cudnnConvolutionBackwardBias', cudnn.getHandle(),
                  self.scaleT:data(),
                  self.oDescForBias[0], gradOutput:data(),
                  cudnn.scalar(input, 1),
@@ -167,7 +162,7 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
     end
 
     -- gradWeight
-    errcheck('cudnnConvolutionBackwardFilter', cudnn.getHandle(),
+    errcheck(self,'cudnnConvolutionBackwardFilter', cudnn.getHandle(),
              self.scaleT:data(),
              self.oDesc[0], gradOutput:data(),
              self.iDesc[0], input:data(),

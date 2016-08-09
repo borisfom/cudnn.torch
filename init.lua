@@ -122,7 +122,9 @@ local errcheck = function(f, ...)
    if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
       local str = ffi.string(C.cudnnGetErrorString(status))
       error('Error in CuDNN: ' .. str .. ' ('..f..')')
+      return false
    end
+   return true
 end
 cudnn.errcheck = errcheck
 
@@ -181,7 +183,6 @@ function cudnn.getSharedWorkspace()
     return sharedBuffer[device][stream]
 end
 
-require('cudnn.algo')
 require('cudnn.SpatialConvolution')
 require('cudnn.VolumetricConvolution')
 require('cudnn.SpatialFullConvolution')

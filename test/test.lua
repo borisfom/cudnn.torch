@@ -784,7 +784,7 @@ math.randomseed(os.time())
 mytester = torch.Tester()
 mytester:add(cudnntest)
 
--- new flag to use FindEx instead of Find - FindEx has some failures so far
+-- new flag to use FindEx instead of Find : disabled as we encounter errors.
 cudnn.useFindEx=false
 cudnn.verbose=false
 
@@ -813,11 +813,10 @@ for i = 1, cutorch.getDeviceCount() do
 They will be enabled once fully fixed and functional.
 See https://github.com/soumith/cudnn.torch/issues/225 for progress
 ]])
-
       -- Developers, do not commit uncommented regions until bindings fixed
-      -- print'Testing torch.CudaHalfTensor'
-      -- testparams = testparams_half
-      -- mytester:run()
+--      print'Testing torch.CudaHalfTensor'
+--      testparams = testparams_half
+--      mytester:run()
    end
 end
 
