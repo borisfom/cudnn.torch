@@ -7,6 +7,8 @@ local ffi = require 'ffi'
 
 cudnn.benchmark = false
 cudnn.fastest = false
+-- use new cudnn FindEx APIs
+cudnn.useFindEx = false
 
 local maxStreamsPerDevice = 1024
 local numDevices = cutorch.getDeviceCount()
@@ -109,10 +111,14 @@ function cudnn.getHandle()
     return cudnn.handle[(((device-1)*maxStreamsPerDevice) + stream)]
 end
 
-local errcheck = function(f, ...)
+function cudnn.call(f, ...)
     C.cudnnSetStream(cudnn.getHandle(),
                      ffi.C.THCState_getCurrentStream(cutorch.getState()))
-   local status = C[f](...)
+    return C[f](...)
+end
+
+local errcheck = function(f, ...)
+   local status = cudnn.call(f, ...)
    if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
       local str = ffi.string(C.cudnnGetErrorString(status))
       error('Error in CuDNN: ' .. str .. ' ('..f..')')
@@ -170,11 +176,12 @@ function cudnn.getSharedWorkspace()
     local device = cutorch.getDevice()
     local stream = cutorch.getStream() -- starts from 0
     if not sharedBuffer[device][stream] then
-       sharedBuffer[device][stream] = torch.CudaTensor(1)
+       sharedBuffer[device][stream] = torch.CudaDoubleTensor(256)
     end
     return sharedBuffer[device][stream]
 end
 
+require('cudnn.algo')
 require('cudnn.SpatialConvolution')
 require('cudnn.VolumetricConvolution')
 require('cudnn.SpatialFullConvolution')
