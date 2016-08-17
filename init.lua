@@ -7,6 +7,12 @@ local ffi = require 'ffi'
 
 cudnn.benchmark = false
 cudnn.fastest = false
+-- use new cudnn FindEx APIs
+cudnn.useFindEx = true
+
+-- amount of memory to use on 1st iteration for FindEx
+-- we need a substantial buffer right away to get reasonable algo
+cudnn.initialWorkspaceBytes = 1024*1024
 
 local maxStreamsPerDevice = 1024
 local numDevices = cutorch.getDeviceCount()
@@ -109,14 +115,20 @@ function cudnn.getHandle()
     return cudnn.handle[(((device-1)*maxStreamsPerDevice) + stream)]
 end
 
-local errcheck = function(f, ...)
+function cudnn.call(f, ...)
     C.cudnnSetStream(cudnn.getHandle(),
                      ffi.C.THCState_getCurrentStream(cutorch.getState()))
-   local status = C[f](...)
+    return C[f](...)
+end
+
+local errcheck = function(f, ...)
+   local status = cudnn.call(f, ...)
    if status ~= ffi.C.CUDNN_STATUS_SUCCESS then
       local str = ffi.string(C.cudnnGetErrorString(status))
       error('Error in CuDNN: ' .. str .. ' ('..f..')')
+      return false
    end
+   return true
 end
 cudnn.errcheck = errcheck
 
@@ -146,21 +158,46 @@ function cudnn.toDescriptor(t)
    return descriptor
 end
 
+function cudnn.createDescriptors(count, descs_type, create_func, destroy_func)
+   local ds = ffi.new(descs_type, count)
+   for i = 0, count - 1 do
+      errcheck(create_func, ds + i)
+   end
+   local function destroyDescriptors(ds)
+      for i = 0, count - 1 do
+         errcheck(destroy_func, ds[i])
+      end
+   end
+   ffi.gc(ds, destroyDescriptors)
+   return ds
+end
 
 local sharedBuffer = {}
-for i=1,numDevices do
-    sharedBuffer[i] = {}
-end
 
 function cudnn.getSharedWorkspace()
     local device = cutorch.getDevice()
-    local stream = cutorch.getStream() -- starts from 0
-    if not sharedBuffer[device][stream] then
-       sharedBuffer[device][stream] = torch.CudaTensor(1)
+    if not sharedBuffer[device] then
+       local tempBuf = torch.CudaDoubleStorage(cudnn.initialWorkspaceBytes/8)
+       tempBuf:setFlag(8) -- 8 means temp, no data copy on resize
+       sharedBuffer[device] = tempBuf
     end
-    return sharedBuffer[device][stream]
+    return sharedBuffer[device]
 end
 
+function cudnn.adjustSharedWorkspaceSize(size, greater)
+   greater = greater or false
+   local tempBuf = cudnn.getSharedWorkspace()
+   size = (size+7)/8
+   if size == tempBuf:size() or (greater and size < tempBuf:size()) then
+      return
+   end
+   if size < cudnn.initialWorkspaceBytes then
+      size = cudnn.initialWorkspaceBytes
+   end
+   tempBuf:resize(size)
+end
+
+local find = require('cudnn.find')
 require('cudnn.SpatialConvolution')
 require('cudnn.VolumetricConvolution')
 require('cudnn.SpatialFullConvolution')
@@ -195,5 +232,8 @@ require('cudnn.GRU')
 require('cudnn.functional')
 require('cudnn.convert')
 
+function cudnn.reset()
+   find.reset()
+end
 
 return cudnn
