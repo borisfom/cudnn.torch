@@ -1,5 +1,6 @@
 require 'cudnn'
 require 'cunn'
+local find = require 'cudnn.find'
 
 local cudnntest = torch.TestSuite()
 local nloop = 3
@@ -484,7 +485,7 @@ function cudnntest.SpatialCrossMapLRN_batch()
    local size = random2(1,3)*2+1
    local nbfeatures = random2(3,8)
    local alpha = random2(1,100)/100
-   local beta  = random2(0,100)/100
+   local beta  = random2(1,100)/100
    local k = random2(1,3)
 
    local input = torch.rand(bs, nbfeatures, inputSize, inputSize):cuda()
@@ -796,7 +797,7 @@ mytester = torch.Tester()
 mytester:add(cudnntest)
 
 cudnn.verbose=false
-cudnn.useFindEx=true
+cudnn.useFindEx=false
 
 -- Developers, do not commit uncommented regions until bindings fixed
 local runHalf = false
@@ -815,6 +816,7 @@ for i = 1, cutorch.getDeviceCount() do
       if runHalf and cudnn.benchmark then
          print'Testing torch.CudaHalfTensor'
          testparams = testparams_half
+         find.reset()
          mytester:run()
       else
          print(
@@ -826,13 +828,13 @@ See https://github.com/soumith/cudnn.torch/issues/225 for progress
 
       print'Testing torch.CudaTensor'
       testparams = testparams_float
+      find.reset()
       mytester:run()
 
       print'Testing torch.CudaDoubleTensor'
       testparams = testparams_double
+      find.reset()
       mytester:run()
-
-
    end
 end
 

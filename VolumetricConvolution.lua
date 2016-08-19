@@ -61,7 +61,7 @@ function VolumetricConvolution:createIODescriptors(input)
          self.input_offset = 0
          self.output_offset = 0
          self.weight_offset = 0
-         find.prepare(self, input, self.output)
+         find:prepare(self, input, self.output)
    end
 end
 

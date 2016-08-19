@@ -53,8 +53,10 @@ end
 
 function SpatialConvolution:fastest(mode)
     if mode == nil then mode = true end
-    self.fastest_mode = mode
-    self.iDesc = nil
+    if not self.fastest_mode or self.fastest_mode ~= mode then
+       self.fastest_mode = mode
+       self.iDesc = nil
+    end
     return self
 end
 
@@ -88,6 +90,8 @@ end
 
 function SpatialConvolution:checkInputChanged(input)
     assert(input:isContiguous())
+    find.get():verifyWorkspaceSize(self)
+
     if not self.iSize or self.iSize:size() ~= input:dim() then
        self.iSize = torch.LongStorage(input:dim()):fill(0)
     end
@@ -144,7 +148,7 @@ function SpatialConvolution:createIODescriptors(input)
         self.oDesc = cudnn.toDescriptor(output_slice)
         self.oDescForBias = cudnn.toDescriptor(self.output)
 
-        find.prepare(self, input_slice, output_slice)
+        find:prepare(self, input_slice, output_slice)
 
         -- create offsets for groups
         local iH, iW = input:size(3), input:size(4)
@@ -181,14 +185,17 @@ end
 function SpatialConvolution:updateOutput(input)
     input = makeContiguous(self, input)
     self:createIODescriptors(input)
-    find.forwardAlgorithm(self)
-
+    local finder = find.get()
+    -- force recalculation
+    if not (self.fmode and finder.useCalculatedWorkspaceSize) then
+       self.fmode = finder:forwardAlgorithm(self, { self.iDesc[0], self.input_slice, self.weightDesc[0], self.weight, self.convDesc[0], self.oDesc[0], self.output_slice})
+    end
     for g = 0, self.groups - 1 do
         errcheck(self,'cudnnConvolutionForward', cudnn.getHandle(),
                  cudnn.scalar(input, 1),
                  self.iDesc[0], input:data() + g*self.input_offset,
                  self.weightDesc[0], self.weight:data() + g*self.weight_offset,
-                 self.convDesc[0], self.fwdAlgType,
+                 self.convDesc[0], self.fmode,
                  self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
                  cudnn.scalar(input, 0),
                  self.oDesc[0], self.output:data() + g*self.output_offset);
@@ -211,15 +218,17 @@ function SpatialConvolution:updateGradInput(input, gradOutput)
               or (gradOutput:dim()==5 and input:dim()==4), 'Wrong gradOutput dimensions');
     input, gradOutput = makeContiguous(self, input, gradOutput)
     self:createIODescriptors(input)
-    find.backwardDataAlgorithm(self)
-
+    local finder = find.get()
+    if not (finder.useCalculatedWorkspaceSize and self.bdmode) then
+       self.bdmode = finder:backwardDataAlgorithm(self, { self.weightDesc[0], self.weight, self.oDesc[0], self.output_slice, self.convDesc[0], self.iDesc[0], self.input_slice })
+    end
     for g = 0,self.groups - 1 do
         errcheck(self,'cudnnConvolutionBackwardData', cudnn.getHandle(),
                  cudnn.scalar(input, 1),
                  self.weightDesc[0], self.weight:data() + g*self.weight_offset,
                  self.oDesc[0], gradOutput:data() + g*self.output_offset,
                  self.convDesc[0],
-                 self.bwdDataAlgType,
+                 self.bdmode,
                  self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
                  cudnn.scalar(input, 0),
                  self.iDesc[0], self.gradInput:data() + g*self.input_offset)
@@ -234,10 +243,12 @@ function SpatialConvolution:accGradParameters(input, gradOutput, scale)
        and self.scaleT:double() or self.scaleT:float()
     scale = scale or 1.0
     self.scaleT[1] = scale
-
     input, gradOutput = makeContiguous(self, input, gradOutput)
-
-    find.backwardFilterAlgorithm(self)
+    self:createIODescriptors(input)
+    local finder = find.get()
+    if not (finder.useCalculatedWorkspaceSize and self.bmode) then
+       self.bmode=finder:backwardFilterAlgorithm(self, { self.iDesc[0], self.input_slice, self.oDesc[0], self.output_slice, self.convDesc[0], self.weightDesc[0], self.weight})
+    end
 
     -- gradBias
     if self.bias then
@@ -255,11 +266,12 @@ function SpatialConvolution:accGradParameters(input, gradOutput, scale)
                  self.iDesc[0], input:data() + g*self.input_offset,
                  self.oDesc[0], gradOutput:data() + g*self.output_offset,
                  self.convDesc[0],
-                 self.bwdFilterAlgType,
+                 self.bmode,
                  self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
                  cudnn.scalar(input, 1),
                  self.weightDesc[0], self.gradWeight:data() + g*self.weight_offset);
     end
+
     return self.gradOutput
 end
 
@@ -271,10 +283,6 @@ function SpatialConvolution:clearDesc()
     self.oDesc = nil
     self.oDescForBias = nil
     self.oSize = nil
-    self.algType = nil
-    self.fwdAlgType = nil
-    self.bwdDataAlgType = nil
-    self.bwdFilterAlgType = nil
     self.extraBuffer = nil
     self.scaleT = nil
     return self

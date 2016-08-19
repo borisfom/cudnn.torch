@@ -5,8 +5,13 @@ require('cudnn.ffi')
 local C = cudnn.C
 local ffi = require 'ffi'
 
+--------------------------------------------------------------------
+-- defaults, each should be overrideable via env var:
+--------------------------------------------------------------------
+
 cudnn.benchmark = false
 cudnn.fastest = false
+
 -- use new cudnn FindEx APIs
 cudnn.useFindEx = true
 
@@ -14,7 +19,18 @@ cudnn.useFindEx = true
 -- we need a substantial buffer right away to get reasonable algo
 cudnn.initialWorkspaceBytes = 1024*1024
 
+--
+cudnn.reservedGPUBytes = 1024*1024
+
+cudnn.maxWorkspaceGPUMemPercent = 95
+
 local maxStreamsPerDevice = 1024
+
+--------------------------------------------------------------------
+-- end defaults
+--------------------------------------------------------------------
+
+
 local numDevices = cutorch.getDeviceCount()
 -- this tensor keeps track of whether a handle has been initialized or not
 local handleStatus = torch.ByteTensor(numDevices,
@@ -184,17 +200,22 @@ function cudnn.getSharedWorkspace()
     return sharedBuffer[device]
 end
 
-function cudnn.adjustSharedWorkspaceSize(size, greater)
-   greater = greater or false
+function cudnn.adjustSharedWorkspaceSize(bytes, ifGreater)
+   bytes = bytes or cudnn.initialWorkspaceBytes
+   ifGreater = ifGreater or false
    local tempBuf = cudnn.getSharedWorkspace()
-   size = (size+7)/8
-   if size == tempBuf:size() or (greater and size < tempBuf:size()) then
+   local elSize = tempBuf:elementSize()
+   -- get number of elements in the buf, rounded up
+   local nelem = math.floor((bytes+elSize-1)/elSize)
+   if (nelem == tempBuf:size()) or (ifGreater and nelem < tempBuf:size()) then
       return
    end
-   if size < cudnn.initialWorkspaceBytes then
-      size = cudnn.initialWorkspaceBytes
+   if cudnn.verbose then
+      print ('Resizing WS to ', nelem*8)
    end
-   tempBuf:resize(size)
+   -- resize to 0 first to avoid data copy
+   tempBuf:resize(0)
+   tempBuf:resize(nelem)
 end
 
 local find = require('cudnn.find')
@@ -233,7 +254,10 @@ require('cudnn.functional')
 require('cudnn.convert')
 
 function cudnn.reset()
+   -- this resets internal algorithm finder state machine and cache
    find.reset()
 end
+
+
 
 return cudnn

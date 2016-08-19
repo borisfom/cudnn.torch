@@ -70,7 +70,7 @@ function SpatialFullConvolution:createIODescriptors(input)
         self.output_offset = 0
         self.weight_offset = 0
 
-        find.prepare(self, input_slice, output_slice)
+        find:prepare(self, input_slice, output_slice)
 
         if not batch then
             self.output = self.output:view(self.output:size(2),
@@ -80,15 +80,15 @@ function SpatialFullConvolution:createIODescriptors(input)
     end
 end
 
-
-
-
 function SpatialFullConvolution:updateOutput(input)
     self:createIODescriptors(input)
-    if not self.bwdDataAlgType then
-       find.backwardDataAlgorithm(self, {self.weightDesc[0], self.weight, self.iDesc[0],self.input_slice,
-                                              self.convDesc[0], self.oDesc[0], self.output_slice})
+    local finder = find.get()
+    if not (finder.useCalculatedWorkspaceSize and self.bdmode) then
+       self.bdmode = finder:backwardDataAlgorithm(self, {self.weightDesc[0], self.weight,
+                                                         self.iDesc[0],self.input_slice,
+                                                         self.convDesc[0], self.oDesc[0], self.output_slice})
     end
+
 
     -- Because SpatialFullConvolution is performing the adjoint of the forward
     -- convolution operator, we need to swap the forward and backward passes.
@@ -96,7 +96,7 @@ function SpatialFullConvolution:updateOutput(input)
              cudnn.scalar(input, 1),
              self.weightDesc[0], self.weight:data(),
              self.iDesc[0], input:data(),
-             self.convDesc[0], self.bwdDataAlgType,
+             self.convDesc[0], self.bdmode,
              self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
              cudnn.scalar(input, 0),
              self.oDesc[0], self.output:data())
@@ -118,17 +118,18 @@ function SpatialFullConvolution:updateGradInput(input, gradOutput)
     assert(gradOutput:dim() == 3 or gradOutput:dim() == 4, 'gradOutput has to be 3D or 4D');
     assert(gradOutput:isContiguous(), 'gradOutput has to be contiguous')
     self:createIODescriptors(input)
-    if not self.fwdDataAlgType then
-       find.forwardAlgorithm(self, {self.oDesc[0], self.output_slice, self.weightDesc[0], self.weight,
-                                         self.convDesc[0], self.iDesc[0], self.input_slice})
+    local finder = find.get()
+    if not (finder.useCalculatedWorkspaceSize and self.fmode) then
+       self.fmode = finder:forwardAlgorithm(self, {self.oDesc[0], self.output_slice,
+                                                   self.weightDesc[0], self.weight,
+                                                   self.convDesc[0], self.iDesc[0], self.input_slice})
     end
-
     errcheck(self,'cudnnConvolutionForward', cudnn.getHandle(),
              cudnn.scalar(input, 1),
              self.oDesc[0], gradOutput:data(),
              self.weightDesc[0], self.weight:data(),
              self.convDesc[0],
-             self.fwdAlgType,
+             self.fmode,
              self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
              cudnn.scalar(input, 0),
              self.iDesc[0], self.gradInput:data());
@@ -147,11 +148,12 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
            'gradOutput has to be 3D or 4D');
     assert(gradOutput:isContiguous(), 'gradOutput has to be contiguous')
     self:createIODescriptors(input)
-    if not self.bwdFilterAlgType then
-       find.backwardFilterAlgorithm(self, {self.oDesc[0], self.output_slice, self.iDesc[0], self.input_slice,
-                                                self.convDesc[0], self.weightDesc[0], self.weight})
+    local finder = find.get()
+    if not (finder.useCalculatedWorkspaceSize and self.bmode) then
+       self.bmode = finder:backwardFilterAlgorithm(self, {self.oDesc[0], self.output_slice,
+                                                          self.iDesc[0], self.input_slice,
+                                                          self.convDesc[0], self.weightDesc[0], self.weight})
     end
-
     -- gradBias
     if self.bias then
         errcheck(self,'cudnnConvolutionBackwardBias', cudnn.getHandle(),
@@ -167,7 +169,7 @@ function SpatialFullConvolution:accGradParameters(input, gradOutput, scale)
              self.oDesc[0], gradOutput:data(),
              self.iDesc[0], input:data(),
              self.convDesc[0],
-             self.bwdFilterAlgType,
+             self.bmode,
              self.extraBuffer:data(), self.extraBuffer:size()*self.extraBuffer:elementSize(),
              cudnn.scalar(input, 1),
              self.weightDesc[0], self.gradWeight:data())
