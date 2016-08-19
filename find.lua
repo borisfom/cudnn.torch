@@ -30,7 +30,8 @@ function find.create(id)
    finder:resetAlgorithmCache()
    return finder
 end
--- FindEx SM cycle works as follows:
+
+-- FindEx State Machine cycle works as follows:
 -- iteration #0(useDefaultWorkspaceSize) : call FindEx with default WS size (let everybody allocate I/O, weights etc)
 -- iteration #1(useMaxWorkspaceSize) : call FindEx with maximum WS size, calculate common target WS using largest WS requested
 -- iteration #2+(useCalculatedWorkspaceSize) : set calculated WS. call FindEx again with calculated WS size, cache the result
@@ -59,7 +60,7 @@ function find.reset()
    end
    cutorch.synchronize()
    -- this resets shared WS to the default size(s)
-   cudnn.adjustSharedWorkspaceSize()
+   cudnn.setSharedWorkspaceSize()
    cutorch.synchronize()
    finders = {}
 end
@@ -75,14 +76,22 @@ function find.get()
 end
 
 function find:lookup(layer, findAPI_idx)
-   if self.useCalculatedWorkspaceSize then
+   if self.useCalculatedWorkspaceSize or not self.useFindEx then
       return  self.autotunerCache[findAPI_idx][layer.autotunerHash]
    else
       return nil
    end
 end
 
+-- record algo, memory in cache
+-- adjusts workspace immediately in no FindEx
 function find:store(layer, findAPI_idx, cachedAlgo)
+   if cachedAlgo.status == 0 then
+      -- memorize our own ws size and update global
+      self:registerWorkspaceSize(cachedAlgo.memory)
+   else
+      -- todo: fallback (convert layer to nn ?)
+   end
    self.autotunerCache[findAPI_idx][layer.autotunerHash] = cachedAlgo
 end
 
@@ -95,47 +104,49 @@ function find:setMaxWorkspaceSize(reserve, fraction)
 --   print("Memory: ", freeMemory, totalMemory)
    local ws=cudnn.getSharedWorkspace()
    local newSize= (freeMemory+ws:size()*ws:elementSize()-reserve) * fraction
-   cudnn.adjustSharedWorkspaceSize(newSize)
+   cudnn.setSharedWorkspaceSize(newSize)
    self.useMaxWorkspaceSize = true
 end
 
 function find:setCalculatedWorkspaceSize(greater)
-   cudnn.adjustSharedWorkspaceSize(self.calculatedWorkspaceSize, greater)
+   cudnn.setSharedWorkspaceSize(self.calculatedWorkspaceSize, greater)
+   self.useCalculatedWorkspaceSize = true
 end
 
 function find:registerWorkspaceSize(size)
-   if size > self.calculatedWorkspaceSize then
-      self.calculatedWorkspaceSize = size
-      -- if adjustment is in order, do it now
-      if self.useCalculatedWorkspaceSize then
-         local ws=cudnn.getSharedWorkspace()
-         -- reality check
-         if self.calculatedWorkspaceSize >  (ws:size() * ws:elementSize()) then
---            print ("Recalculated to ", self.calculatedWorkspaceSize)
-            self:setCalculatedWorkspaceSize(true)
-         end
+   if self.useFindEx then
+      if size > self.calculatedWorkspaceSize then
+         self.calculatedWorkspaceSize = size
       end
+   else
+      -- no FindEx - do not rely on find stored data
+      cudnn.setSharedWorkspaceSize(size, true)
    end
 end
 
-function find:verifyWorkspaceSize(layer, reserve)
-   if false then -- self.useMaxWorkspaceSize then
-      -- todo: implement layer method returning memory allocation size
-      local reserve = reserve or 2*(layer.weight:nElement()*layer.weight:elementSize())
-      local freeMemory, totalMemory = cutorch.getMemoryUsage(self.id)
-      if freeMemory < reserve then
-         -- let's make sure we still have space to reallocate our data
-         self:setMaxWorkspaceSize(reserve + cudnn.reservedGPUBytes)
-      end
+function find:reserveBytes(layer)
+   local reserve = cudnn.reservedGPUBytes
+   -- todo: implement layer method returning memory allocation size
+   reserve = reserve + 2*layer.weight:nElement()*layer.weight:elementSize()
+   return reserve
+end
+
+
+function find:verifyWorkspaceSize(layer)
+   local freeMemory, totalMemory = cutorch.getMemoryUsage(self.id)
+   local reserve =  self:reserveBytes(layer)
+   if freeMemory < reserve then
+      -- let's make sure we still have space to reallocate our data
+      cudnn.adjustSharedWorkspaceSize(freeMemory - reserve)
    end
 end
 
 function find:newIteration(layer)
-   if not layer.iteration then layer.iteration = {0,0,0} end
-   if self.useCalculatedWorkspaceSize then
+   if self.useCalculatedWorkspaceSize or not self.useFindEx then
       --- end state
-      return
+      return false
    end
+   if not layer.iteration then layer.iteration = {0,0,0} end
    -- find last iteration
    local max_iter = 0
    for k,v in pairs(layer.iteration) do
@@ -144,7 +155,7 @@ function find:newIteration(layer)
 
    if (self.iteration < max_iter and max_iter > 1) then
       self.iteration = max_iter
---      print ("SM: iteration ", self.iteration)
+      if cudnn.verbose then  print ("CUDNN Find SM: iteration ", self.iteration) end
       return true
    else
      return false
@@ -152,23 +163,21 @@ function find:newIteration(layer)
 end
 
 function find:advanceStateMachine(layer, findAPI_idx)
+   if not self.useFindEx then return end
    if self:newIteration(layer) then
       -- iteration changed, advance state machine
       if self.useMaxWorkspaceSize then
---         print ("SM: max->calculated ", self.calculatedWorkspaceSize)
+         if cudnn.verbose then  print ("SM: max->calculated ", self.calculatedWorkspaceSize) end
          self:setCalculatedWorkspaceSize()
-         self.useCalculatedWorkspaceSize = true
          self.useMaxWorkspaceSize = false
       end
       if self.useDefaultWorkspaceSize then
          if self.useFindEx then
---            print ("SM: default->max")
-            self:setMaxWorkspaceSize()
-            self.useMaxWorkspaceSize = true
+            if cudnn.verbose then print ("Find SM: default->max") end
+            self:setMaxWorkspaceSize(self:reserveBytes(layer))
          else
---            print ("SM: default->calculated ", self.calculatedWorkspaceSize)
+            if cudnn.verbose then print ("Find SM: default->calculated ", self.calculatedWorkspaceSize) end
             self:setCalculatedWorkspaceSize(true)
-            self.useCalculatedWorkspaceSize = true
          end
          self.useDefaultWorkspaceSize = false
       end
@@ -205,6 +214,10 @@ function find:setupAlgo(layer, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
            if cudnn.benchmark or cudnn.fastest then -- the manual auto-tuner is run
               local intt = torch.IntTensor(1)
               if cudnn.useFindEx then
+                 -- use clone for weights when looking for backward filter algo
+                 if findAPI_idx == 2 then
+                    params[7] = params[7]:clone()
+                 end
                  errcheck(layer, findExAPI,
                           cudnn.getHandle(),
                           params[1], params[2]:data(), params[3], params[4]:data(), params[5], params[6], params[7]:data(),
@@ -261,15 +274,7 @@ function find:setupAlgo(layer, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
               cachedAlgo.memory = tonumber(bufSize[1])
               cachedAlgo.status = 0
            end
-           -- record algo, memory in cache
            self:store(layer, findAPI_idx, cachedAlgo)
-        end
-
-        if cachedAlgo.status == 0 then
-           -- memorize our own ws size and update global
-           self:registerWorkspaceSize(cachedAlgo.memory)
-        else
-           -- todo: fallback (convert layer to nn ?)
         end
 
         if cudnn.verbose then
@@ -278,7 +283,6 @@ function find:setupAlgo(layer, algo_t, perf_t, findAPI_idx, getAPI, wsAPI, algSe
                     "\n" .. curFindAPI  .. ": %d Workspace: %8d (current ws size %d, free: %d)  hash: %45s" .. cacheHit,
                     tonumber(cachedAlgo.algo), tonumber(cachedAlgo.memory), extraBufferSizeInBytes, freeMemory, layer.autotunerHash))
         end
-        collectgarbage()
         return cachedAlgo.algo
 end
 
@@ -288,7 +292,7 @@ function find:prepare(layer, input_slice, output_slice)
    end
    layer.autotunerHash = shape(layer.weight) .. ';'
       .. shape(input_slice) .. ';'
-      .. shape(output_slice) .. "[" .. layer.padH .. ":" .. layer.padW .. ']'
+      .. shape(output_slice) .. "[" .. layer.padH .. ":" .. layer.padW .. ']' .. cudnn.configmap(torch.type(layer.weight))
 
    layer:resetMode()
    layer.iteration = nil
@@ -311,10 +315,6 @@ function find:backwardFilterAlgorithm(layer, params)
    local algSearchMode = 'CUDNN_CONVOLUTION_BWD_FILTER_NO_WORKSPACE'
    if layer.fastest_mode or cudnn.benchmark == true or cudnn.fastest == true then
       algSearchMode = 'CUDNN_CONVOLUTION_BWD_FILTER_PREFER_FASTEST'
-   end
-   if self.useFindEx then
-      -- prepare a copy ow weights for FindEx call
-      params[7] = params[7]:clone()
    end
    local ret = self:setupAlgo(layer,"cudnnConvolutionBwdFilterAlgo_t[?]", "cudnnConvolutionBwdFilterAlgoPerf_t[?]",
                               2, 'cudnnGetConvolutionBackwardFilterAlgorithm',

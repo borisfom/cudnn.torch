@@ -90,7 +90,6 @@ end
 
 function SpatialConvolution:checkInputChanged(input)
     assert(input:isContiguous())
-    find.get():verifyWorkspaceSize(self)
 
     if not self.iSize or self.iSize:size() ~= input:dim() then
        self.iSize = torch.LongStorage(input:dim()):fill(0)

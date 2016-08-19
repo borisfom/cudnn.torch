@@ -3,7 +3,6 @@ require 'cunn'
 local find = require 'cudnn.find'
 
 local cudnntest = torch.TestSuite()
-local nloop = 3
 local times = {}
 local mytester
 local jac = nn.Jacobian
@@ -796,11 +795,15 @@ math.randomseed(os.time())
 mytester = torch.Tester()
 mytester:add(cudnntest)
 
-cudnn.verbose=false
-cudnn.useFindEx=false
+cudnn.verbose=true
+
 
 -- Developers, do not commit uncommented regions until bindings fixed
 local runHalf = false
+
+-- TODO: adapt tests for FindEx
+-- cudnn.useFindEx=false
+
 
 for i = 1, cutorch.getDeviceCount() do
 
@@ -816,7 +819,6 @@ for i = 1, cutorch.getDeviceCount() do
       if runHalf and cudnn.benchmark then
          print'Testing torch.CudaHalfTensor'
          testparams = testparams_half
-         find.reset()
          mytester:run()
       else
          print(
@@ -828,12 +830,10 @@ See https://github.com/soumith/cudnn.torch/issues/225 for progress
 
       print'Testing torch.CudaTensor'
       testparams = testparams_float
-      find.reset()
       mytester:run()
 
       print'Testing torch.CudaDoubleTensor'
       testparams = testparams_double
-      find.reset()
       mytester:run()
    end
 end

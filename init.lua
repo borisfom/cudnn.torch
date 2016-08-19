@@ -13,7 +13,8 @@ cudnn.benchmark = false
 cudnn.fastest = false
 
 -- use new cudnn FindEx APIs
-cudnn.useFindEx = true
+-- Warning: this option is experimental and assumes at least 2 warmup iterations!
+cudnn.useFindEx = false
 
 -- amount of memory to use on 1st iteration for FindEx
 -- we need a substantial buffer right away to get reasonable algo
@@ -22,7 +23,7 @@ cudnn.initialWorkspaceBytes = 1024*1024
 --
 cudnn.reservedGPUBytes = 1024*1024
 
-cudnn.maxWorkspaceGPUMemPercent = 95
+cudnn.maxWorkspaceGPUMemPercent = 90
 
 local maxStreamsPerDevice = 1024
 
@@ -200,7 +201,14 @@ function cudnn.getSharedWorkspace()
     return sharedBuffer[device]
 end
 
-function cudnn.adjustSharedWorkspaceSize(bytes, ifGreater)
+function cudnn.adjustSharedWorkspaceSize(bytes)
+   local tempBuf = cudnn.getSharedWorkspace()
+   local newSize = floor((tempBuf:elementSize()*tempBuf:size()+bytes+tempBuf:elementSize()-1)/tempBuf:elementSize())
+   tempBuf:resize(0)
+   tempBuf:resize(newsize)
+end
+
+function cudnn.setSharedWorkspaceSize(bytes, ifGreater)
    bytes = bytes or cudnn.initialWorkspaceBytes
    ifGreater = ifGreater or false
    local tempBuf = cudnn.getSharedWorkspace()
